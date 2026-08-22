@@ -1,0 +1,68 @@
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { getSiteSettings } from "@/lib/settings";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getSiteSettings();
+  return {
+    title: {
+      default: `${s.site_name} - ${s.site_description}`,
+      template: `%s | ${s.site_name}`,
+    },
+    description: s.site_description,
+    icons: s.favicon_url ? [{ rel: "icon", url: s.favicon_url }] : undefined,
+  };
+}
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const settings = await getSiteSettings();
+
+  const themeScript = `
+(function(){
+  try {
+    var dflt = ${JSON.stringify(settings.theme_mode)};
+    var stored = localStorage.getItem("mmg-theme");
+    var mode = stored || dflt;
+    if (mode === "system") {
+      mode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    if (mode === "dark") document.documentElement.classList.add("dark");
+  } catch (e) {}
+})();
+`;
+
+  return (
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={
+        {
+          "--brand": settings.primary_color,
+          "--brand-secondary": settings.secondary_color,
+        } as React.CSSProperties
+      }
+      data-theme-default={settings.theme_mode}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="min-h-full flex flex-col">{children}</body>
+    </html>
+  );
+}

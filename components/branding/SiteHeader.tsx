@@ -1,0 +1,43 @@
+import Link from "next/link";
+import { getSiteSettings } from "@/lib/settings";
+import ThemeToggle from "@/components/branding/ThemeToggle";
+
+export default async function SiteHeader() {
+  const s = await getSiteSettings();
+
+  return (
+    <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-background/80 backdrop-blur">
+      <div className="mx-auto max-w-6xl px-4 h-16 flex items-center justify-between gap-4">
+        <Link href="/" className="flex items-center gap-2 min-w-0">
+          {s.logo_url ? (
+            // Logos live in the user's own Supabase Storage domain, which is
+            // only known at runtime - plain <img> avoids remotePatterns config.
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={s.logo_url}
+              alt={s.site_name}
+              className="h-8 w-auto max-w-[160px] object-contain"
+            />
+          ) : (
+            <>
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white font-bold">
+                {s.site_name.charAt(0).toUpperCase()}
+              </span>
+              <span className="font-semibold truncate">{s.site_name}</span>
+            </>
+          )}
+        </Link>
+
+        <nav className="flex items-center gap-1 sm:gap-3 text-sm">
+          <Link href="/generator" className="rounded-lg px-3 py-2 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            Generator
+          </Link>
+          <Link href="/about" className="hidden sm:block rounded-lg px-3 py-2 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            About
+          </Link>
+          <ThemeToggle />
+        </nav>
+      </div>
+    </header>
+  );
+}
