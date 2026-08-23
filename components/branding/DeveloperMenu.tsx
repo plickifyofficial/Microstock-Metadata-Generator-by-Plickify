@@ -9,9 +9,8 @@ export interface DeveloperInfo {
 }
 
 /**
- * CSV Tree-style developer dropdown in the header: brand mark + links to
- * the developer website and Facebook page. Values come from the server
- * (license module) - not editable from the Admin Panel.
+ * Subtle developer item in the nav (CSV Tree style): small logo mark that
+ * opens a dropdown with the developer website and Facebook page.
  */
 export default function DeveloperMenu({ dev }: { dev: DeveloperInfo }) {
   const [open, setOpen] = useState(false);
@@ -20,28 +19,21 @@ export default function DeveloperMenu({ dev }: { dev: DeveloperInfo }) {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        title="Developer"
-        aria-label="Developer"
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        title={`Developer: ${dev.name}`}
+        aria-label={`Developer: ${dev.name}`}
+        className="inline-flex h-9 items-center rounded-lg px-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       >
-        {/* Plickify mark */}
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-gradient-to-br from-brand to-brand-secondary text-[10px] font-extrabold text-white">
-          P
-        </span>
-        <span className="hidden sm:inline text-xs font-semibold">Developer</span>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3 w-3 text-slate-400">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/plickify-logo.png" alt={dev.name} className="h-5 w-auto opacity-70 hover:opacity-100 transition-opacity dark:opacity-80" />
       </button>
 
       {open ? (
         <>
           <button aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-background shadow-xl z-50 overflow-hidden">
+          <div className="absolute right-0 top-full mt-2 w-60 rounded-xl border border-slate-200 dark:border-slate-800 bg-background shadow-xl z-50 overflow-hidden">
             <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-lg font-extrabold text-white shadow">
-                P
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/plickify-logo.png" alt={dev.name} className="h-8 w-auto" />
               <div>
                 <p className="text-sm font-bold">{dev.name}</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">Developer &amp; Maintainer</p>
