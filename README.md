@@ -430,6 +430,20 @@ is fine. Two fixes:
    affected by vercel.app blocks. Remember to update `NEXT_PUBLIC_APP_URL`
    and the Supabase Auth Site URL afterwards.
 
+**Login broken on a custom domain**
+Supabase only redirects OAuth flows to URLs on its allowlist. After adding
+a custom domain in Vercel:
+
+1. Supabase → Authentication → URL Configuration:
+   - Site URL: `https://yourdomain.com`
+   - Redirect URLs must include `https://yourdomain.com/**` (keep your
+     vercel.app and localhost entries too).
+2. Update `NEXT_PUBLIC_APP_URL` in Vercel to the custom domain and redeploy.
+3. Test in an incognito window - browsers cache the old redirect state.
+
+No change is needed in the Google Cloud Console: Google's authorized
+redirect URI points at the Supabase callback host, not your app domain.
+
 **Login redirects back to `/login` or shows "Access Denied"**
 Your Google account has no active row in `admin_users`. Follow section 12.
 
