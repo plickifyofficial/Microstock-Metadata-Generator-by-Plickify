@@ -73,6 +73,8 @@ function providerDisplayName(id: string): string {
 
 interface WorkItem extends CardItem {
   previewUrl: string;
+  /** Object URL of the ORIGINAL file - the raster/parse data source. */
+  fileUrl: string;
   /** Original file type from disk (before canvas compression). */
   fileType: string;
 }
@@ -172,20 +174,26 @@ export default function GeneratorWorkbench({
         const mode = getUserSettings().mode;
         return [
           ...prev,
-          ...accepted.map((file) => ({
-            id: `img_${nowMs()}_${idCounter.current++}`,
-            filename: file.name,
-            mode,
-            status: "pending" as const,
-            title: "",
-            description: "",
-            keywords: [],
-            category: "",
-            promptText: undefined,
-            // AI/EPS/PDF have no native browser preview - show a placeholder.
-            previewUrl: isPostscript(file) ? "" : URL.createObjectURL(file),
-            fileType: file.type || file.name.slice(file.name.lastIndexOf(".") + 1),
-          })),
+          ...accepted.map((file) => {
+            const fileUrl = URL.createObjectURL(file);
+            const postscript = isPostscript(file);
+            return {
+              id: `img_${nowMs()}_${idCounter.current++}`,
+              filename: file.name,
+              mode,
+              status: "pending" as const,
+              title: "",
+              description: "",
+              keywords: [],
+              category: "",
+              promptText: undefined,
+              // AI/EPS/PDF have no native browser preview - placeholder tile.
+              previewUrl: postscript ? "" : fileUrl,
+              // Always keep the original bytes reachable for processing.
+              fileUrl,
+              fileType: file.type || file.name.slice(file.name.lastIndexOf(".") + 1),
+            };
+          }),
         ];
       });
     },
@@ -199,7 +207,7 @@ export default function GeneratorWorkbench({
   function removeItem(id: string) {
     setItems((prev) => {
       const target = prev.find((i) => i.id === id);
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      if (target?.fileUrl) URL.revokeObjectURL(target.fileUrl);
       return prev.filter((i) => i.id !== id);
     });
   }
@@ -223,12 +231,12 @@ export default function GeneratorWorkbench({
     let prepared;
     const vectorKind = detectVector(item.filename);
     if (vectorKind === "svg") {
-      const blob = await fetch(item.previewUrl).then((r) => r.blob());
+      const blob = await fetch(item.fileUrl).then((r) => r.blob());
       prepared = await prepareSvg(
         new File([blob], item.filename, { type: "image/svg+xml" })
       );
     } else if (vectorKind === "postscript") {
-      const blob = await fetch(item.previewUrl).then((r) => r.blob());
+      const blob = await fetch(item.fileUrl).then((r) => r.blob());
       const ext = item.filename.toLowerCase().endsWith(".eps")
         ? "eps"
         : item.filename.toLowerCase().endsWith(".pdf")
@@ -239,7 +247,7 @@ export default function GeneratorWorkbench({
         ext
       );
     } else {
-      const blob = await fetch(item.previewUrl).then((r) => r.blob());
+      const blob = await fetch(item.fileUrl).then((r) => r.blob());
       prepared = await prepareImage(
         new File([blob], item.filename, { type: blob.type || "image/jpeg" })
       );
