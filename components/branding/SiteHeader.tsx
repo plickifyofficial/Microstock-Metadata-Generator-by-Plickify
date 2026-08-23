@@ -4,8 +4,10 @@ import ThemeToggle from "@/components/branding/ThemeToggle";
 import UserProfile from "@/components/branding/UserProfile";
 import HealthBadge from "@/components/branding/HealthBadge";
 import DeveloperMenu from "@/components/branding/DeveloperMenu";
+import UpdateBell from "@/components/branding/UpdateBell";
 import { getAdminStatus } from "@/lib/auth";
 import { DEVELOPER } from "@/lib/core/license";
+import { LATEST_UPDATE } from "@/lib/updates";
 
 export default async function SiteHeader() {
   const [s, { isAdmin }] = await Promise.all([getSiteSettings(), getAdminStatus()]);
@@ -34,6 +36,12 @@ export default async function SiteHeader() {
         <nav className="flex items-center gap-1 sm:gap-3 text-sm">
           <ThemeToggle />
           <HealthBadge />
+          {LATEST_UPDATE ? (
+            <UpdateBell
+              latestVersion={LATEST_UPDATE.version}
+              latestTitle={LATEST_UPDATE.title}
+            />
+          ) : null}
           <DeveloperMenu
             dev={{
               name: DEVELOPER.name,

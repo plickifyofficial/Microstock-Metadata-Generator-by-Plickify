@@ -1,0 +1,271 @@
+{
+  "$schema": "Maintained by Plickify. Newest entries first. Fork users see this file's contents on the /updates page and via the nav bell.",
+  "updates": [
+    {
+      "version": "1.7.2",
+      "date": "2026-08-24",
+      "type": "feature",
+      "title": "Auto-sync workflow for forks",
+      "changes": [
+        "Daily GitHub Action now merges official releases into every fork automatically",
+        "Vercel redeploys forks by itself after each sync - zero manual work",
+        "Conflicts (only when core files were customized) fail loudly with clear guidance"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.7.1",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Developer popup placement",
+      "changes": [
+        "Developer popup now opens as a compact dropdown directly beneath the </> nav icon (CSV Tree behaviour) instead of a centered modal"
+      ],
+      "bugfixes": [
+        "Outside click and Escape close the popup reliably"
+      ],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.7.0",
+      "date": "2026-08-23",
+      "type": "release",
+      "title": "Fork-ready release + README rewrite",
+      "changes": [
+        "Home platform strip is generated from the export platform list",
+        "README completely rewritten: A-Z fork guide covering all 10 migrations, BYOK tutorials, custom domain notes and troubleshooting"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.6.2",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Nav cleanup & health widget accuracy",
+      "changes": [
+        "Removed the About page and the Generator/About nav links",
+        "Header brand always shows the site name next to the logo"
+      ],
+      "bugfixes": [
+        "Health widget AI status now counts personal browser keys as connected, not just the server env key"
+      ],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.6.1",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Subtle developer credit with real logo",
+      "changes": [
+        "Nav shows a small developer icon instead of a highlighted button",
+        "Footer row: footer text left, copyright centered, Made-by logo right",
+        "Official Plickify Academy logo bundled"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-08-23",
+      "type": "feature",
+      "title": "Header utilities + protected attribution",
+      "changes": [
+        "New header widgets beside the profile: dark/light toggle reflecting current state, Web Health popover (website/database/AI/version) and Developer menu",
+        "Footer carries the required Made by Plickify credit"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": "No action needed. Note: the Plickify attribution is license-protected - removing it stops the site from rendering and blocks generation."
+    },
+    {
+      "version": "1.5.2",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Generator layout: docked left sidebar",
+      "changes": [
+        "Controls panel is now a full-height panel pinned to the left edge with its own scroll",
+        "Metadata cards use the entire remaining viewport width"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.5.1",
+      "date": "2026-08-23",
+      "type": "docs",
+      "title": "Custom domain login guide",
+      "changes": [
+        "Troubleshooting steps for login after adding a custom domain (Supabase URL allowlist)"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": "If your custom domain login loops: Supabase > Authentication > URL Configuration must include https://yourdomain.com/** and be set as Site URL."
+    },
+    {
+      "version": "1.5.0",
+      "date": "2026-08-23",
+      "type": "feature",
+      "title": "AI Providers selection + bilingual key tutorials",
+      "changes": [
+        "New Admin > AI Providers page: choose which providers users can add keys for",
+        "API Keys modal shows step-by-step tutorials in English and Bangla for every provider",
+        "Disabled providers are hidden and rejected by the generation API"
+      ],
+      "bugfixes": [],
+      "migrationRequired": true,
+      "migrations": ["0010_enabled_providers.sql"],
+      "action": "RUN MIGRATION: open Supabase SQL Editor and run supabase/migrations/0010_enabled_providers.sql. Without it, saving provider selection fails."
+    },
+    {
+      "version": "1.4.0",
+      "date": "2026-08-23",
+      "type": "release",
+      "title": "Editable page content + admin UI refresh",
+      "changes": [
+        "New Admin > Page Content: edit hero, feature cards, how-it-works steps and About text without code",
+        "Modern admin sidebar with grouped sections and active highlighting",
+        "Redesigned home page with gradient hero and dynamic platform strip"
+      ],
+      "bugfixes": [],
+      "migrationRequired": true,
+      "migrations": ["0009_page_content.sql"],
+      "action": "RUN MIGRATION: run supabase/migrations/0009_page_content.sql in Supabase SQL Editor. Until you do, the Page Content page will show save errors."
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-08-23",
+      "type": "release",
+      "title": "Professional generator UI",
+      "changes": [
+        "Left controls sidebar is pinned while cards scroll",
+        "Success popup after every finished batch with correct downloads (metadata = CSV, prompts = CSV + TXT)",
+        "Auto-fallback toasts show which provider failed and which took over"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.2.1",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Batch limit raised for existing installs",
+      "changes": [
+        "Existing databases move from the old 10-image cap to 200"
+      ],
+      "bugfixes": [
+        "Clearer 'batch limit reached' message pointing to the setting"
+      ],
+      "migrationRequired": false,
+      "migrations": ["0008_raise_batch_limit.sql"],
+      "action": "OPTIONAL: run 0008_raise_batch_limit.sql, or just set Max Images / Batch manually in Admin > Generator Settings."
+    },
+    {
+      "version": "1.2.0",
+      "date": "2026-08-23",
+      "type": "feature",
+      "title": "Unlimited generation",
+      "changes": [
+        "Rate limit 0 means unlimited generations per hour",
+        "Batch size can go up to 200 images"
+      ],
+      "bugfixes": [],
+      "migrationRequired": true,
+      "migrations": ["0007_unlimited_generation.sql"],
+      "action": "RUN MIGRATION: run supabase/migrations/0007_unlimited_generation.sql, otherwise saving Rate Limit = 0 fails with a constraint error."
+    },
+    {
+      "version": "1.1.4",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Custom favicon override",
+      "changes": [
+        "Removed the scaffold favicon that always overrode the uploaded one",
+        "Icon metadata emits icon + shortcut + apple-touch-icon links"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.1.3",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Exact CSV Tree export formats restored",
+      "changes": [
+        "Platform templates are byte-identical to CSV Tree (Adobe Stock without description, Shutterstock without title, Magnific semicolon format)"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.1.2",
+      "date": "2026-08-23",
+      "type": "bugfix",
+      "title": "Admin Panel changes apply instantly",
+      "changes": [
+        "All pages render dynamically so branding/theme/site-name edits appear immediately"
+      ],
+      "bugfixes": [
+        "Settings saves now upsert - rows auto-create even if migrations were partially run",
+        "Branding uploads force the storage bucket public so logos render"
+      ],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-08-23",
+      "type": "release",
+      "title": "CSV Tree generator parity + admin-only site",
+      "changes": [
+        "Metadata and Image-to-Prompt modes with every control from CSV Tree",
+        "13-provider API key rotation with cross-provider fallback",
+        "Whole site gated behind Google login; only active admins enter"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-08-22",
+      "type": "release",
+      "title": "Initial public release",
+      "changes": [
+        "AI metadata generator with bulk queue, CSV exports and admin panel",
+        "Supabase auth + database migrations with RLS"
+      ],
+      "bugfixes": [],
+      "migrationRequired": true,
+      "migrations": [
+        "0001_admin_users.sql", "0002_site_settings.sql",
+        "0003_generator_settings.sql", "0004_usage_logs.sql",
+        "0005_rls.sql", "0006_storage.sql"
+      ],
+      "action": "Fresh installs must run migrations 0001-0006 in order."
+    }
+  ]
+}

@@ -361,6 +361,21 @@ Forks stay up to date **automatically**:
   open the fork on GitHub → **Sync fork → Update branch** and resolve
   conflicts once manually.
 
+### In-site update notifications
+
+Every release also ships a `updates.json` file at the repo root. The site
+reads it and shows:
+
+- A **bell icon** in the nav with a pulsing dot whenever a new version
+  arrives (click to preview, opens the changelog).
+- A full **`/updates` timeline**: what changed per version, which bugs were
+  fixed, which SQL migrations must be run and an explicit action guide when
+  any manual step is needed.
+
+Because `updates.json` travels with the code, forked sites display the new
+entry automatically right after each auto-sync — no database writes, no
+manual announcements.
+
 Manual alternatives:
 
 ```bash
