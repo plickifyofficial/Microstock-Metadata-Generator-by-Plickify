@@ -2,6 +2,23 @@
   "$schema": "Maintained by Plickify. Newest entries first. Fork users see this file's contents on the /updates page and via the nav bell.",
   "updates": [
     {
+      "version": "2.0.0",
+      "date": "2026-08-24",
+      "type": "feature",
+      "title": "Vector files (SVG/AI/EPS) + smarter, honest metadata",
+      "changes": [
+        "Upload SVG, AI, EPS and PDF files - rasterized locally in your browser (better than CSV Tree: no proxy needed)",
+        "Vector-aware AI prompting: flat-design vocabulary instead of invented camera/photography terms",
+        "New accuracy contract: the model must describe only visible elements and return fewer honest keywords rather than unrelated padding",
+        "Sharper vector rendering with white backdrop and up to 3x upscale",
+        "Redesigned result cards with status pills and a placeholder tile for vector files"
+      ],
+      "bugfixes": [],
+      "migrationRequired": false,
+      "migrations": [],
+      "action": null
+    },
+    {
       "version": "1.9.0",
       "date": "2026-08-24",
       "type": "bugfix",

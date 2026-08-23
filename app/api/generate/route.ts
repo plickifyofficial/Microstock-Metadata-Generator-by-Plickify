@@ -65,8 +65,12 @@ function buildOptions(body: Record<string, unknown>, s: Awaited<ReturnType<typeo
   const mode =
     u.mode === "img2prompt" || body.mode === "img2prompt" ? "img2prompt" : "metadata";
 
+  const vectorKind = typeof body.vectorKind === "string" ? body.vectorKind.trim() : "";
+  const vector = ["svg", "postscript"].includes(vectorKind) ? vectorKind : null;
+
   return {
-    mode,
+    mode: mode as PromptOptions["mode"],
+    vector,
     platform: typeof body.platform === "string" && /^[a-z0-9-]{1,30}$/.test(body.platform)
       ? body.platform
       : "general",
