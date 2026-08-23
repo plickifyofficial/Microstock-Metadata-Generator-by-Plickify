@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { getSiteSettings } from "@/lib/settings";
 import ThemeToggle from "@/components/branding/ThemeToggle";
+import UserProfile from "@/components/branding/UserProfile";
+import { getAdminStatus } from "@/lib/auth";
 
 export default async function SiteHeader() {
-  const s = await getSiteSettings();
+  const [s, { isAdmin }] = await Promise.all([getSiteSettings(), getAdminStatus()]);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 bg-background/80 backdrop-blur">
@@ -36,6 +38,7 @@ export default async function SiteHeader() {
             About
           </Link>
           <ThemeToggle />
+          <UserProfile isAdmin={isAdmin} />
         </nav>
       </div>
     </header>

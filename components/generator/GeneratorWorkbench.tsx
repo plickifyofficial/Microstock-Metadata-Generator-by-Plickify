@@ -128,14 +128,19 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     return () => clearInterval(t);
   }, [running, stats.done, stats.total]);
 
-  // Deep-link ?mode=img2prompt (once per mount).
+  // Deep-links: ?mode=img2prompt and ?keys=1 (once per mount).
   useEffect(() => {
-    try {
-      const m = new URLSearchParams(window.location.search).get("mode");
-      if (m === "img2prompt" && getUserSettings().mode !== "img2prompt") {
-        setUserSettings({ mode: "img2prompt" });
-      }
-    } catch {}
+    const t = setTimeout(() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const m = params.get("mode");
+        if (m === "img2prompt" && getUserSettings().mode !== "img2prompt") {
+          setUserSettings({ mode: "img2prompt" });
+        }
+        if (params.get("keys") === "1") setShowApiKeys(true);
+      } catch {}
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   function update<K extends keyof GeneratorUserSettings>(
