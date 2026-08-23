@@ -228,14 +228,10 @@ export default function GeneratorWorkbench({
     updateItem(item.id, { status: "processing", error: undefined });
 
     // Vectors (SVG/AI/EPS/PDF) are rasterized locally; rasters downscaled.
+    // The rendered artwork becomes the card preview immediately.
     let prepared;
     const vectorKind = detectVector(item.filename);
-    if (vectorKind === "svg") {
-      const blob = await fetch(item.fileUrl).then((r) => r.blob());
-      prepared = await prepareSvg(
-        new File([blob], item.filename, { type: "image/svg+xml" })
-      );
-    } else if (vectorKind === "postscript") {
+    if (vectorKind === "postscript") {
       const blob = await fetch(item.fileUrl).then((r) => r.blob());
       const ext = item.filename.toLowerCase().endsWith(".eps")
         ? "eps"
@@ -246,12 +242,24 @@ export default function GeneratorWorkbench({
         new File([blob], item.filename, { type: "application/postscript" }),
         ext
       );
+      updateItem(item.id, {
+        previewUrl: `data:image/jpeg;base64,${prepared.base64}`,
+      });
+    } else if (vectorKind === "svg") {
+      const blob = await fetch(item.fileUrl).then((r) => r.blob());
+      prepared = await prepareSvg(
+        new File([blob], item.filename, { type: "image/svg+xml" })
+      );
+      updateItem(item.id, {
+        previewUrl: `data:image/jpeg;base64,${prepared.base64}`,
+      });
     } else {
       const blob = await fetch(item.fileUrl).then((r) => r.blob());
       prepared = await prepareImage(
         new File([blob], item.filename, { type: blob.type || "image/jpeg" })
       );
     }
+
     const attempts = buildAttemptPlan().filter((a) =>
       enabledProviders.includes(a.providerId)
     );
