@@ -53,12 +53,6 @@ export default async function HomePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                 </svg>
               </Link>
-              <Link
-                href="/about"
-                className="rounded-xl border border-slate-300 dark:border-slate-700 px-7 py-3.5 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                Learn More
-              </Link>
             </div>
 
             {/* Trust strip */}

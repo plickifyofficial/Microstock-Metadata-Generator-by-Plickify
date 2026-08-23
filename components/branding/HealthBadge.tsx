@@ -1,23 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { hasAnyKey, subscribeKeys } from "@/lib/client/apiKeys";
 
 interface Health {
   db: boolean;
-  ai: boolean;
+  envAi: boolean;
   version: string;
-  ok: boolean;
 }
 
 /**
  * CSV Tree-style system health widget in the header: a status dot that
- * expands into a small popover with database / AI / version checks.
+ * expands into a small popover with website / database / AI checks.
+ *
+ * AI is "connected" when either personal BYOK keys exist in this browser
+ * or the optional server env key (AI_API_KEY) is configured.
  */
 export default function HealthBadge() {
   const [open, setOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [localKeys, setLocalKeys] = useState(false);
+
+  useEffect(() => {
+    // Deferred so initial state reads happen outside the effect body.
+    const t = setTimeout(() => setLocalKeys(hasAnyKey()), 0);
+    const unsub = subscribeKeys(() => setLocalKeys(hasAnyKey()));
+    return () => {
+      clearTimeout(t);
+      unsub();
+    };
+  }, []);
+
+  const aiOk = localKeys || !!health?.envAi;
 
   async function load() {
     setLoading(true);
@@ -33,19 +49,22 @@ export default function HealthBadge() {
     }
   }
 
-  function toggle() {
+  const toggle = useCallback(() => {
     const next = !open;
     setOpen(next);
     if (next && !health && !loading) void load();
-  }
+    setLocalKeys(hasAnyKey());
+  }, [open, health, loading]);
 
-  const dot = failed
-    ? "bg-red-500"
-    : loading || (!health && !failed)
-      ? "bg-slate-300 dark:bg-slate-600"
-      : health?.ok
-        ? "bg-emerald-500 animate-pulse"
-        : "bg-amber-500";
+  const overall = failed ? "down" : health?.db === false ? "warn" : aiOk ? "ok" : "warn";
+  const dot =
+    failed || overall === "down"
+      ? "bg-red-500"
+      : loading || (!health && !failed)
+        ? "bg-slate-300 dark:bg-slate-600"
+        : overall === "ok"
+          ? "bg-emerald-500 animate-pulse"
+          : "bg-amber-500";
 
   return (
     <div className="relative">
@@ -61,16 +80,12 @@ export default function HealthBadge() {
       {open ? (
         <>
           <button aria-hidden tabIndex={-1} onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default" />
-          <div className="absolute right-0 top-full mt-2 w-60 rounded-xl border border-slate-200 dark:border-slate-800 bg-background shadow-xl z-50 py-1">
+          <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-background shadow-xl z-50 py-1">
             <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">
               Web Health
             </p>
             <div className="px-4 py-2 space-y-2 text-sm">
-              <Row
-                label="Website"
-                ok={!failed}
-                value={failed ? "Unreachable" : "Online"}
-              />
+              <Row label="Website" ok={!failed} value={failed ? "Unreachable" : "Online"} />
               <Row
                 label="Database"
                 ok={!!health?.db}
@@ -78,15 +93,24 @@ export default function HealthBadge() {
               />
               <Row
                 label="AI Provider"
-                ok={!!health?.ai}
-                value={health ? (health.ai ? "Configured" : "Not configured") : "…"}
+                ok={aiOk}
+                value={
+                  localKeys
+                    ? "Your API keys"
+                    : health?.envAi
+                      ? "Server key"
+                      : health
+                        ? "Not connected"
+                        : "…"
+                }
               />
-              <Row
-                label="Version"
-                ok
-                value={health?.version ?? (loading ? "…" : "-")}
-              />
+              <Row label="Version" ok value={health?.version ?? (loading ? "…" : "-")} />
             </div>
+            {!aiOk && health ? (
+              <p className="px-4 pb-2.5 text-[11px] leading-snug text-amber-600 dark:text-amber-400">
+                Add an API key from the Generator → API Keys to start generating.
+              </p>
+            ) : null}
           </div>
         </>
       ) : null}

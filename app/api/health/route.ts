@@ -9,6 +9,10 @@ export const dynamic = "force-dynamic";
 /**
  * Lightweight system-health probe used by the header "Web Health" widget.
  * Returns only booleans + version - no sensitive data.
+ *
+ * `envAi` reports the optional server-side AI_API_KEY fallback. Personal
+ * BYOK keys live in each browser, so the widget combines this flag with
+ * its local key check.
  */
 export async function GET() {
   let db = false;
@@ -20,12 +24,12 @@ export async function GET() {
     db = false;
   }
 
-  const ai = !!resolveProvider();
+  const envAi = !!resolveProvider();
 
   return NextResponse.json({
     db,
-    ai,
+    envAi,
     version: versionFile?.version ?? "unknown",
-    ok: db && ai,
+    ok: db,
   });
 }

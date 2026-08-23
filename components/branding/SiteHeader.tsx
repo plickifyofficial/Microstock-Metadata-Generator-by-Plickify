@@ -21,25 +21,17 @@ export default async function SiteHeader() {
             <img
               src={s.logo_url}
               alt={s.site_name}
-              className="h-8 w-auto max-w-[160px] object-contain"
+              className="h-8 w-auto max-w-[140px] object-contain"
             />
           ) : (
-            <>
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white font-bold">
-                {s.site_name.charAt(0).toUpperCase()}
-              </span>
-              <span className="font-semibold truncate">{s.site_name}</span>
-            </>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white font-bold">
+              {s.site_name.charAt(0).toUpperCase()}
+            </span>
           )}
+          <span className="font-semibold truncate">{s.site_name}</span>
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-3 text-sm">
-          <Link href="/generator" className="rounded-lg px-3 py-2 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            Generator
-          </Link>
-          <Link href="/about" className="hidden sm:block rounded-lg px-3 py-2 font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-            About
-          </Link>
           <ThemeToggle />
           <HealthBadge />
           <DeveloperMenu

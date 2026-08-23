@@ -150,6 +150,12 @@ export function getSelectedProvider(): string {
   }
 }
 
+/** True when at least one API key exists for any provider. */
+export function hasAnyKey(): boolean {
+  const store = readRawStore();
+  return Object.values(store).some((list) => Array.isArray(list) && list.length > 0);
+}
+
 export function setSelectedProvider(provider: string): void {
   try {
     localStorage.setItem(PROVIDER_KEY, provider);
