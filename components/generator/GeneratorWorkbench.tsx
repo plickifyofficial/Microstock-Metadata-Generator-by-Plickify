@@ -5,6 +5,8 @@ import Dropzone from "@/components/generator/Dropzone";
 import ResultCard, { type CardItem } from "@/components/generator/ResultCard";
 import ControlsPanel from "@/components/generator/ControlsPanel";
 import ApiKeysModal from "@/components/generator/ApiKeysModal";
+import SuccessModal from "@/components/generator/SuccessModal";
+import FallbackToast from "@/components/generator/FallbackToast";
 import { prepareImage } from "@/lib/client/image";
 import {
   addToHistory,
@@ -36,15 +38,8 @@ import {
   subscribeKeys,
   QUOTA_REHAB_MS,
 } from "@/lib/client/apiKeys";
-import { getProvider } from "@/lib/ai/providers";
-import {
-  buildCSV,
-  buildJSON,
-  buildTXT,
-  buildPromptTxt,
-  buildPromptCsv,
-  type CsvRow,
-} from "@/lib/csv/formats";
+import { getProvider, PROVIDERS } from "@/lib/ai/providers";
+import { buildCSV, buildPromptTxt, buildPromptCsv, type CsvRow } from "@/lib/csv/formats";
 import type { GeneratorSettings, GeneratorUserSettings, GeneratedMetadata } from "@/lib/types";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"];
@@ -59,6 +54,10 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function providerDisplayName(id: string): string {
+  return PROVIDERS.find((p) => p.id === id)?.name ?? id;
+}
+
 interface WorkItem extends CardItem {
   previewUrl: string;
 }
@@ -70,32 +69,14 @@ interface Stats {
   failed: number;
 }
 
-function subscribeKeysAdapter(cb: () => void) {
-  return subscribeKeys(cb);
-}
-function getProviderNameSnapshot(): string {
-  return getSelectedProvider();
-}
-function getServerProviderName(): string {
-  return "";
-}
-
 export default function GeneratorWorkbench({ settings }: { settings: GeneratorSettings }) {
-  const user = useSyncExternalStore(
-    subscribeUserSettings,
-    getUserSettings,
-    getServerUserSettings
-  );
+  const user = useSyncExternalStore(subscribeUserSettings, getUserSettings, getServerUserSettings);
   const platform = useSyncExternalStore(subscribeUserSettings, getPlatform, getServerPlatform);
-  const exportExt = useSyncExternalStore(
-    subscribeUserSettings,
-    getExportExt,
-    getServerExportExt
-  );
+  const exportExt = useSyncExternalStore(subscribeUserSettings, getExportExt, getServerExportExt);
   const providerName = useSyncExternalStore(
-    subscribeKeysAdapter,
-    getProviderNameSnapshot,
-    getServerProviderName
+    (cb) => subscribeKeys(cb),
+    getSelectedProvider,
+    () => ""
   );
   const history = useSyncExternalStore(
     subscribeHistory,
@@ -107,6 +88,8 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
   const [running, setRunning] = useState(false);
   const [showApiKeys, setShowApiKeys] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [fallbackMsg, setFallbackMsg] = useState<string | null>(null);
   const [stats, setStats] = useState<Stats>({ done: 0, total: 0, success: 0, failed: 0 });
   const [etaSec, setEtaSec] = useState(0);
   const idCounter = useRef(0);
@@ -114,13 +97,12 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
   const retriedRef = useRef<Set<string>>(new Set());
   const batchStartRef = useRef(0);
 
-  // Live ETA ticker while a batch runs (impure time reads stay in the
-  // interval callback, never during render).
+  // Live ETA ticker while a batch runs.
   useEffect(() => {
     if (!running) return;
     const tick = () => {
       if (batchStartRef.current && stats.done > 0 && stats.total > stats.done) {
-        const perDoneMs = (Date.now() - batchStartRef.current) / stats.done;
+        const perDoneMs = (nowMs() - batchStartRef.current) / stats.done;
         setEtaSec(Math.round((perDoneMs / 1000) * (stats.total - stats.done)));
       }
     };
@@ -151,7 +133,8 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
   }
 
   const doneItems = useMemo(() => items.filter((i) => i.status === "done"), [items]);
-  const canExport = doneItems.length > 0 || items.some((i) => i.mode === "img2prompt" && i.promptText);
+  const canExport =
+    doneItems.length > 0 || items.some((i) => i.mode === "img2prompt" && i.promptText);
 
   /* ---------------------------------------------------------------- */
   /* File intake                                                        */
@@ -162,12 +145,14 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
       setItems((prev) => {
         const capacity = settings.max_images_per_batch - prev.length;
         if (capacity <= 0) return prev;
-        const accepted = files.filter((f) => ACCEPTED.includes(f.type)).slice(0, capacity);
+        const accepted = files
+          .filter((f) => ACCEPTED.includes(f.type))
+          .slice(0, capacity);
         const mode = getUserSettings().mode;
         return [
           ...prev,
           ...accepted.map((file) => ({
-            id: `img_${Date.now()}_${idCounter.current++}`,
+            id: `img_${nowMs()}_${idCounter.current++}`,
             filename: file.name,
             mode,
             status: "pending" as const,
@@ -200,11 +185,12 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     if (running) return;
     setItems([]);
     setStats({ done: 0, total: 0, success: 0, failed: 0 });
+    setShowSuccess(false);
     retriedRef.current.clear();
   }
 
   /* ---------------------------------------------------------------- */
-  /* Generation engine - BYOK attempt plan + fallback                   */
+  /* Generation engine - BYOK attempt plan + auto-fallback              */
   /* ---------------------------------------------------------------- */
 
   async function callGenerate(item: WorkItem): Promise<void> {
@@ -222,7 +208,6 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
       platform,
       options: {
         ...user,
-        // Only send meaningful values.
         prefix: user.usePrefix ? user.prefix : "",
         suffix: user.useSuffix ? user.suffix : "",
         negativeTitleWords: user.useNegativeTitle ? user.negativeTitleWords : "",
@@ -237,7 +222,7 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     const queue: Attempt[] =
       attempts.length > 0
         ? attempts.map((a) => ({ providerId: a.providerId, keyValue: a.keyValue }))
-        : [null]; // null = use server env key
+        : [null]; // null = server env key
 
     let lastError = "Generation failed.";
     for (let i = 0; i < queue.length; i++) {
@@ -267,8 +252,10 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
         if (attempt) markKeyUsed(attempt.providerId, attempt.keyValue);
 
         if (item.mode === "img2prompt") {
-          const text = typeof json.prompt === "string" ? json.prompt : "";
-          updateItem(item.id, { status: "done", promptText: text });
+          updateItem(item.id, {
+            status: "done",
+            promptText: typeof json.prompt === "string" ? json.prompt : "",
+          });
         } else {
           const meta = (json.metadata ?? {}) as GeneratedMetadata;
           updateItem(item.id, {
@@ -285,8 +272,12 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
         addToHistory({
           id: item.id,
           filename: item.filename,
-          title: item.mode === "img2prompt" ? (json.prompt ?? "") : ((json.metadata?.title as string) ?? ""),
-          description: item.mode === "img2prompt" ? "" : ((json.metadata?.description as string) ?? ""),
+          title:
+            item.mode === "img2prompt"
+              ? ((json.prompt as string) ?? "")
+              : ((json.metadata?.title as string) ?? ""),
+          description:
+            item.mode === "img2prompt" ? "" : ((json.metadata?.description as string) ?? ""),
           keywords:
             item.mode === "img2prompt"
               ? []
@@ -304,8 +295,16 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
             attempt.keyValue,
             isQuotaError(lastError) ? QUOTA_REHAB_MS : undefined
           );
+          const nextName = queue[i + 1]
+            ? providerDisplayName(queue[i + 1]!.providerId)
+            : null;
+          setFallbackMsg(
+            nextName
+              ? `${providerDisplayName(attempt.providerId)} failed - falling back to ${nextName}…`
+              : `${providerDisplayName(attempt.providerId)} failed - no fallback keys left.`
+          );
         }
-        // Try next key/provider.
+        // Try the next key/provider automatically.
       }
     }
     throw new Error(lastError);
@@ -342,21 +341,25 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
 
     // Auto-retry failed items once (CSV Tree behaviour).
     if (!abortRef.current.aborted) {
-      const failedNow = items.filter((i) => i.status === "error" && !retriedRef.current.has(i.id));
+      const failedNow = items.filter(
+        (i) => i.status === "error" && !retriedRef.current.has(i.id)
+      );
       for (const f of failedNow) retriedRef.current.add(f.id);
       if (failedNow.length > 0) {
         for (const f of failedNow) {
-          if (abortRef.current.aborted) break;
           updateItem(f.id, { status: "pending", error: undefined });
           setStats((s) => ({ ...s, done: Math.max(0, s.done - 1) }));
         }
         setRunning(false);
-        setTimeout(() => runQueue(failedNow.map((f) => f.id)), 500);
+        setTimeout(() => void runQueue(failedNow.map((f) => f.id)), 500);
         return;
       }
     }
 
     setRunning(false);
+    if (!abortRef.current.aborted && success > 0) {
+      setShowSuccess(true);
+    }
   }
 
   function generateAll() {
@@ -365,6 +368,7 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     if (pending.length === 0) return;
     batchStartRef.current = nowMs();
     setStats({ done: 0, total: pending.length, success: 0, failed: 0 });
+    setShowSuccess(false);
     void runQueue(pending.map((i) => i.id));
   }
 
@@ -373,6 +377,7 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     if (!item || running) return;
     batchStartRef.current = nowMs();
     updateItem(id, { status: "pending", error: undefined });
+    setStats({ done: 0, total: 1, success: 0, failed: 0 });
     await runQueue([id]);
   }
 
@@ -381,7 +386,7 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
   }
 
   /* ---------------------------------------------------------------- */
-  /* Export                                                            */
+  /* Export - metadata = CSV only, prompts = CSV + TXT                  */
   /* ---------------------------------------------------------------- */
 
   function exportRows(): CsvRow[] {
@@ -413,41 +418,39 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function exportAs(format: "csv" | "json" | "txt" | "prompts-txt" | "prompts-csv") {
+  function exportCsv() {
     if (!canExport) return;
     const rows = exportRows();
-    const stamp = new Date().toISOString().slice(0, 10);
     const suffix = exportExt ? `-${exportExt}` : "";
-    if (format === "csv") {
-      // Same naming scheme as CSV Tree.
-      download(
-        buildCSV(platform, rows, { exportExt }),
-        `${platform}-metadata${suffix}.csv`,
-        "text/csv;charset=utf-8"
-      );
-    } else if (format === "json") {
-      download(buildJSON(rows), `metadata-${stamp}.json`, "application/json;charset=utf-8");
-    } else if (format === "txt") {
-      download(buildTXT(rows), `metadata-${stamp}.txt`, "text/plain;charset=utf-8");
-    } else if (format === "prompts-txt") {
-      download(buildPromptTxt(rows), "all-prompts.txt", "text/plain;charset=utf-8");
-    } else if (format === "prompts-csv") {
-      download(buildPromptCsv(rows), "all-prompts.csv", "text/csv;charset=utf-8");
-    }
+    download(
+      buildCSV(platform, rows, { exportExt }),
+      `${platform}-metadata${suffix}.csv`,
+      "text/csv;charset=utf-8"
+    );
   }
 
-  /* ---------------------------------------------------------------- */
-  /* Render                                                            */
-  /* ---------------------------------------------------------------- */
+  function exportPromptsTxt() {
+    if (!canExport) return;
+    download(buildPromptTxt(exportRows()), "all-prompts.txt", "text/plain;charset=utf-8");
+  }
+
+  function exportPromptsCsv() {
+    if (!canExport) return;
+    download(buildPromptCsv(exportRows()), "all-prompts.csv", "text/csv;charset=utf-8");
+  }
 
   const isPromptMode = user.mode === "img2prompt";
 
+  /* ---------------------------------------------------------------- */
+  /* Render                                                             */
+  /* ---------------------------------------------------------------- */
+
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        {/* Sidebar */}
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface p-3 flex items-center justify-between gap-2">
+      <div className="grid gap-6 lg:grid-cols-[330px_1fr] items-start">
+        {/* Sticky sidebar - stays pinned while the right side scrolls */}
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto lg:pb-4 lg:pr-1 scroll-smooth">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface shadow-sm p-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-bold">Controls</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
@@ -456,7 +459,7 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
             </div>
             <button
               onClick={() => setShowApiKeys(true)}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-slate-900 dark:bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white dark:text-slate-900 hover:opacity-90"
+              className="shrink-0 inline-flex items-center rounded-full bg-brand px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white hover:opacity-90 transition-opacity"
             >
               API Keys
             </button>
@@ -470,14 +473,14 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
           />
         </aside>
 
-        {/* Main */}
+        {/* Main column */}
         <div className="space-y-5 min-w-0">
           {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface shadow-sm p-3 flex flex-wrap items-center gap-2">
             <button
               onClick={generateAll}
               disabled={running || !items.some((i) => i.status === "pending")}
-              className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40"
+              className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
               {running ? `Generating… (${stats.done}/${stats.total})` : "Generate All"}
             </button>
@@ -492,12 +495,20 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
             <button
               onClick={clearAll}
               disabled={running || items.length === 0}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
             >
               Clear All
             </button>
             {running && etaSec > 0 ? (
-              <span className="text-xs text-slate-500">~{etaSec}s left</span>
+              <span className="ml-auto text-xs font-medium text-slate-500 tabular-nums">
+                ~{etaSec}s remaining
+              </span>
+            ) : null}
+            {!running && stats.total > 0 ? (
+              <span className="ml-auto text-xs font-medium text-slate-500">
+                {stats.success}/{stats.total} succeeded
+                {stats.failed ? ` · ${stats.failed} failed` : ""}
+              </span>
             ) : null}
           </div>
 
@@ -506,37 +517,55 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
 
           {items.length >= settings.max_images_per_batch && (
             <p className="text-sm text-amber-600 dark:text-amber-400">
-              Batch limit reached ({settings.max_images_per_batch} images). Raise it in
-              Admin Panel → Generator Settings → Max Images / Batch (up to 200).
+              Batch limit reached ({settings.max_images_per_batch} images). Raise it in Admin
+              Panel → Generator Settings → Max Images / Batch.
             </p>
           )}
 
           {/* Results */}
           {items.length > 0 && (
             <div className="space-y-4">
-          {items.map((item) => (
-            <ResultCard
-              key={item.id}
-              item={item}
-              platform={platform}
-              onUpdate={(patch) => updateItem(item.id, patch)}
-              onRegenerate={() => regenerate(item.id)}
-              onRemove={() => removeItem(item.id)}
-            />
-          ))}
+              {items.map((item) => (
+                <ResultCard
+                  key={item.id}
+                  item={item}
+                  platform={platform}
+                  onUpdate={(patch) => updateItem(item.id, patch)}
+                  onRegenerate={() => regenerate(item.id)}
+                  onRemove={() => removeItem(item.id)}
+                />
+              ))}
             </div>
           )}
 
           {/* Export bar */}
-          {items.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              {!isPromptMode ? (
-                <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          {items.length > 0 ? (
+            <div className="sticky bottom-4 z-30 rounded-xl border border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur shadow-lg p-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">
+                Export ({isPromptMode ? items.filter((i) => i.promptText).length : doneItems.length} ready):
+              </span>
+              <button
+                onClick={exportCsv}
+                disabled={!canExport}
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+              >
+                Download CSV
+              </button>
+              {isPromptMode ? (
+                <button
+                  onClick={exportPromptsTxt}
+                  disabled={!canExport}
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                >
+                  Prompts .TXT
+                </button>
+              ) : (
+                <label className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 ml-auto">
                   Filename ext.
                   <select
                     value={exportExt}
                     onChange={(e) => persistExportExt(e.target.value)}
-                    className="rounded-lg border border-slate-300 dark:border-slate-700 bg-background px-2 py-1.5 text-xs"
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand/50"
                   >
                     {EXPORT_EXTS.map((e) => (
                       <option key={e || "orig"} value={e}>
@@ -545,28 +574,13 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
                     ))}
                   </select>
                 </label>
-              ) : null}
-              <span className="text-sm text-slate-500 dark:text-slate-400">
-                Export ({isPromptMode ? items.filter((i) => i.promptText).length : doneItems.length} ready):
-              </span>
-              <ExportBtn primary label="Download CSV" onClick={() => exportAs("csv")} disabled={!canExport} />
-              {isPromptMode ? (
-                <>
-                  <ExportBtn label="Prompts .TXT" onClick={() => exportAs("prompts-txt")} disabled={!canExport} />
-                  <ExportBtn label="Prompts .CSV" onClick={() => exportAs("prompts-csv")} disabled={!canExport} />
-                </>
-              ) : (
-                <>
-                  <ExportBtn label="JSON" onClick={() => exportAs("json")} disabled={!canExport} />
-                  <ExportBtn label="TXT" onClick={() => exportAs("txt")} disabled={!canExport} />
-                </>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* History */}
           {history.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface shadow-sm">
               <button
                 onClick={() => setShowHistory((v) => !v)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold"
@@ -586,7 +600,10 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
                     </div>
                   ))}
                   <div className="px-4 py-2">
-                    <button onClick={() => clearHistory()} className="text-xs text-red-600 dark:text-red-400 hover:underline">
+                    <button
+                      onClick={() => clearHistory()}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                    >
                       Clear history
                     </button>
                   </div>
@@ -598,34 +615,18 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
       </div>
 
       <ApiKeysModal open={showApiKeys} onClose={() => setShowApiKeys(false)} />
+
+      <SuccessModal
+        open={showSuccess}
+        onClose={() => setShowSuccess(false)}
+        count={isPromptMode ? items.filter((i) => i.promptText).length : doneItems.length}
+        failedCount={stats.failed}
+        mode={user.mode}
+        onDownloadCsv={isPromptMode ? exportPromptsCsv : exportCsv}
+        onDownloadTxt={isPromptMode ? exportPromptsTxt : undefined}
+      />
+
+      <FallbackToast message={fallbackMsg} onDone={() => setFallbackMsg(null)} />
     </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-function ExportBtn({
-  label,
-  onClick,
-  disabled,
-  primary,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition-opacity disabled:opacity-40 ${
-        primary
-          ? "bg-brand text-white hover:opacity-90"
-          : "border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
