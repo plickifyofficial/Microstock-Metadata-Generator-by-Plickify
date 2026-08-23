@@ -506,7 +506,8 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
 
           {items.length >= settings.max_images_per_batch && (
             <p className="text-sm text-amber-600 dark:text-amber-400">
-              Batch limit reached ({settings.max_images_per_batch} images).
+              Batch limit reached ({settings.max_images_per_batch} images). Raise it in
+              Admin Panel → Generator Settings → Max Images / Batch (up to 200).
             </p>
           )}
 
