@@ -78,6 +78,7 @@ export default async function AdminLayout({
             "/admin/theme",
             "/admin/generator",
             "/admin/providers",
+            "/admin/social",
             "/admin/admins",
             "/admin/usage",
           ].map((href) => (
