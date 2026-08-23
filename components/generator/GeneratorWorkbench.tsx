@@ -60,6 +60,8 @@ function providerDisplayName(id: string): string {
 
 interface WorkItem extends CardItem {
   previewUrl: string;
+  /** Original file type from disk (before canvas compression). */
+  fileType: string;
 }
 
 interface Stats {
@@ -168,6 +170,7 @@ export default function GeneratorWorkbench({
             category: "",
             promptText: undefined,
             previewUrl: URL.createObjectURL(file),
+            fileType: file.type || "image/jpeg",
           })),
         ];
       });
@@ -213,9 +216,14 @@ export default function GeneratorWorkbench({
       filename: item.filename,
       mimeType: prepared.mimeType,
       imageBase64: prepared.base64,
+      // Original on-disk type: PNGs keep their transparent-background
+      // phrasing even after canvas compression to JPEG.
+      pngSource: item.fileType === "image/png",
       platform,
       options: {
         ...user,
+        // Per-item mode so a mixed queue never mis-parses responses.
+        mode: item.mode,
         prefix: user.usePrefix ? user.prefix : "",
         suffix: user.useSuffix ? user.suffix : "",
         negativeTitleWords: user.useNegativeTitle ? user.negativeTitleWords : "",
