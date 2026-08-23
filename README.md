@@ -414,6 +414,19 @@ in the Supabase SQL Editor / CLI exactly like the initial setup. Check
 
 ## 21. Troubleshooting
 
+**Site only loads with a VPN (common on some ISPs, e.g. Bangladesh)**
+
+Your ISP is intermittently blocking `*.vercel.app` domains - the app itself
+is fine. Two fixes:
+
+1. Quick: switch your device/router DNS to Cloudflare (`1.1.1.1`) and
+   Google (`8.8.8.8`), then flush DNS (`ipconfig /flushdns` on Windows).
+2. Permanent: attach a **custom domain** to the Vercel project
+   (Settings → Domains). Add an `A` record to `76.76.21.21` or a `CNAME`
+   to `cname.vercel-dns.com` at your registrar. Custom domains are not
+   affected by vercel.app blocks. Remember to update `NEXT_PUBLIC_APP_URL`
+   and the Supabase Auth Site URL afterwards.
+
 **Login redirects back to `/login` or shows "Access Denied"**
 Your Google account has no active row in `admin_users`. Follow section 12.
 
