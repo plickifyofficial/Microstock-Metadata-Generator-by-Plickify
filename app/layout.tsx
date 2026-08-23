@@ -27,7 +27,13 @@ export async function generateMetadata(): Promise<Metadata> {
       template: `%s | ${s.site_name}`,
     },
     description: s.site_description,
-    icons: s.favicon_url ? [{ rel: "icon", url: s.favicon_url }] : undefined,
+    icons: s.favicon_url
+      ? {
+          icon: s.favicon_url,
+          shortcut: s.favicon_url,
+          apple: s.favicon_url,
+        }
+      : undefined,
   };
 }
 
