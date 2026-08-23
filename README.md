@@ -351,7 +351,22 @@ Visitors can additionally override light/dark locally via the header toggle.
 
 ## Updating the Project
 
+Forks stay up to date **automatically**:
+
+- This repo ships a GitHub Action (`.github/workflows/auto-sync.yml`) that
+  runs **daily in every fork**, merging new official releases into the
+  fork's `main` branch.
+- The merge push triggers Vercel, so updates deploy themselves.
+- If the run reports a conflict (because core files were customized),
+  open the fork on GitHub → **Sync fork → Update branch** and resolve
+  conflicts once manually.
+
+Manual alternatives:
+
 ```bash
+# Option A - GitHub UI: repo page -> "Sync fork" -> "Update branch"
+
+# Option B - git CLI
 git remote add upstream https://github.com/<official-owner>/<repo>.git
 git fetch upstream
 git merge upstream/main
