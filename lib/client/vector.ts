@@ -52,7 +52,12 @@ async function tryRenderPdf(
   for (const mode of ["local", "cdn"] as WorkerMode[]) {
     try {
       const pdfjs = await loadPdfjs(mode);
-      const loadingTask = pdfjs.getDocument({ data });
+      const loadingTask = pdfjs.getDocument({
+        data,
+        // Silence per-byte parser warnings - they freeze the browser on
+        // malformed input.
+        verbosity: 0,
+      } as Parameters<typeof pdfjs.getDocument>[0]);
       const doc = await loadingTask.promise;
       try {
         const page = await doc.getPage(1);
@@ -93,15 +98,22 @@ async function tryRenderPdf(
 }
 
 /** Slice a buffer to its embedded "%PDF-" payload, or null when absent. */
-function sliceToPdfMarker(bytes: Uint8Array): Uint8Array | null {
+function findPdfOffset(bytes: Uint8Array): number {
   const marker = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
-  outer: for (let i = 1; i <= bytes.length - marker.length; i++) {
+  outer: for (let i = 0; i <= bytes.length - marker.length; i++) {
     for (let j = 0; j < marker.length; j++) {
       if (bytes[i + j] !== marker[j]) continue outer;
     }
-    return bytes.slice(i);
+    return i;
   }
-  return null;
+  return -1;
+}
+
+function sliceToPdfMarker(bytes: Uint8Array): Uint8Array | null {
+  const off = findPdfOffset(bytes);
+  // Offset 0 means the whole buffer already starts as PDF (handled by the
+  // direct render); slicing from 0 again is pointless but harmless.
+  return off > 0 ? bytes.slice(off) : null;
 }
 
 /**
@@ -202,28 +214,37 @@ export async function preparePostScript(
   ext: "ai" | "eps" | "pdf"
 ): Promise<PreparedImage> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const firstError = { value: "" };
 
-  // 1. Render as-is (most AI >= CS files are PDF-compatible).
-  const direct = await tryRenderPdf(bytes, firstError);
-  if (direct) return direct;
-
-  // 2. Retry against a sliced %PDF- payload (PostScript-prefixed exports).
-  const sliced = sliceToPdfMarker(bytes);
-  if (sliced) {
-    const viaSlice = await tryRenderPdf(sliced);
-    if (viaSlice) return viaSlice;
+  // Guard: absurdly large files would freeze the tab during any scan.
+  if (bytes.length > 120 * 1024 * 1024) {
+    throw new Error(
+      `${file.name}: ${(bytes.length / 1024 / 1024).toFixed(0)} MB is too large. Please export a smaller preview version.`
+    );
   }
 
-  // 3. EPS: decode the embedded TIFF preview.
-  if (ext === "eps") {
+  const pdfOff = findPdfOffset(bytes);
+  const firstError = { value: "" };
+
+  // CRITICAL: never hand pure PostScript data to pdf.js. Its parser logs a
+  // console warning PER invalid byte, which freezes/crashes the browser on
+  // multi-MB EPS files. Only run it when real PDF bytes exist.
+  if (pdfOff >= 0) {
+    const direct = await tryRenderPdf(bytes, firstError);
+    if (direct) return direct;
+
+    if (pdfOff > 0) {
+      const viaSlice = await tryRenderPdf(bytes.slice(pdfOff), firstError);
+      if (viaSlice) return viaSlice;
+    }
+  }
+
+  // No PDF payload inside: EPS classic -> decode embedded TIFF preview.
+  if (ext === "eps" || pdfOff === -1) {
     const tiff = extractEpsTiffPreview(bytes);
     if (tiff) return tiff;
   }
 
-  const technical = firstError.value
-    ? ` Technical detail: ${firstError.value}`
-    : "";
+  const technical = firstError.value ? ` Technical detail: ${firstError.value}` : "";
   throw new Error(
     (ext === "eps"
       ? `${file.name}: no renderable preview found. Re-export the EPS with an embedded preview (Illustrator: "Embed preview" / 72-150 dpi) or upload an SVG/PDF/JPG version instead.`
