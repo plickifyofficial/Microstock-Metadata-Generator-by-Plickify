@@ -12,6 +12,7 @@ import {
   getAutoFallback,
   setAutoFallback,
 } from "@/lib/client/apiKeys";
+import HowToGetApiModal from "@/components/generator/HowToGetApiModal";
 
 interface MaskedKey {
   id: string;
@@ -22,13 +23,22 @@ interface MaskedKey {
   cooldownMs?: number;
 }
 
-export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function ApiKeysModal({
+  open,
+  onClose,
+  enabledProviders,
+}: {
+  open: boolean;
+  onClose: () => void;
+  enabledProviders: string[];
+}) {
   const [selected, setSelected] = useState("groq");
   const [keysByProvider, setKeysByProvider] = useState<Record<string, MaskedKey[]>>({});
   const [newKey, setNewKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fallbackOn, setFallbackOn] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [tutorialFor, setTutorialFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +58,9 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
     }
     setKeysByProvider(map);
     if (!expanded && total > 0) {
-      const firstWithKeys = PROVIDERS.find((p) => map[p.id]?.length);
+      const firstWithKeys = PROVIDERS.filter((p) => enabledProviders.includes(p.id)).find(
+        (p) => map[p.id]?.length
+      );
       if (firstWithKeys) setExpanded(firstWithKeys.id);
     }
   }
@@ -67,7 +79,7 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
 
   if (!open) return null;
 
-  const ordered = [...PROVIDERS].sort((a, b) => {
+  const ordered = PROVIDERS.filter((p) => enabledProviders.includes(p.id)).sort((a, b) => {
     const aHas = (keysByProvider[a.id]?.length ?? 0) > 0 ? 0 : 1;
     const bHas = (keysByProvider[b.id]?.length ?? 0) > 0 ? 0 : 1;
     if (aHas !== bHas) return aHas - bHas;
@@ -92,16 +104,15 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
           </button>
         </div>
 
-        {/* Tutorial */}
+        {/* Tutorial notice */}
         <div className="mx-5 mt-4 rounded-xl border border-brand/30 bg-brand/5 p-4 text-sm">
-          <p className="font-semibold text-brand">How it works</p>
-          <ol className="mt-2 space-y-1 text-slate-600 dark:text-slate-400 list-decimal list-inside">
-            <li>Pick a provider below and click its docs link to create a free API key.</li>
-            <li>Paste the key and press Add. The first key of a provider becomes active.</li>
-            <li>Generation always uses your active provider first; if it fails or hits a rate limit, other saved providers are tried automatically (when Auto-fallback is on).</li>
-            <li>Failing keys cool down for ~5 minutes (quota errors ~1 hour) and recover automatically.</li>
-            <li>No keys? The server&apos;s own AI_PROVIDER / AI_API_KEY is used as a fallback.</li>
-          </ol>
+          <p className="font-semibold text-brand">Adding a key takes 2 minutes</p>
+          <p className="mt-1 text-slate-600 dark:text-slate-400">
+            Pick a provider below and press the{" "}
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-brand text-[9px] font-bold text-brand">?</span>{" "}
+            button for a step-by-step tutorial in English or Bengali. Keys stay
+            in your browser only - rotation and fallback are automatic.
+          </p>
           <label className="mt-3 flex items-center gap-2 text-sm font-medium cursor-pointer">
             <input
               type="checkbox"
@@ -122,6 +133,11 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
 
         {/* Provider list */}
         <div className="p-5 space-y-2">
+          {ordered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400 italic">
+              No providers enabled. The admin can enable providers in Admin Panel → AI Providers.
+            </p>
+          ) : null}
           {ordered.map((p) => {
             const keys = keysByProvider[p.id] || [];
             const isOpen = expanded === p.id;
@@ -150,8 +166,18 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
                       {p.model} · {p.freeLimit}
                     </span>
                   </span>
-                  <span className="text-xs font-semibold text-slate-400">{keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : p.free ? "Free" : "Paid"}</span>
-                  <span className="text-slate-400">{isOpen ? "▲" : "▼"}</span>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <span className="text-xs font-semibold text-slate-400">{keys.length ? `${keys.length} key${keys.length > 1 ? "s" : ""}` : p.free ? "Free" : "Paid"}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTutorialFor(p.id); }}
+                      title={`How to get a ${p.name} API key`}
+                      aria-label={`Tutorial: ${p.name}`}
+                      className="p-1 rounded-full border border-brand text-[10px] font-bold text-brand hover:bg-brand/10 transition-colors"
+                    >
+                      ?
+                    </button>
+                    <span className="text-slate-400 text-xs">{isOpen ? "▲" : "▼"}</span>
+                  </span>
                 </button>
 
                 {isOpen && (
@@ -233,6 +259,12 @@ export default function ApiKeysModal({ open, onClose }: { open: boolean; onClose
           })}
         </div>
       </div>
+
+      <HowToGetApiModal
+        open={tutorialFor !== null}
+        providerId={tutorialFor}
+        onClose={() => setTutorialFor(null)}
+      />
     </div>
   );
 }

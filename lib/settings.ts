@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  ALL_PROVIDER_IDS,
   DEFAULT_GENERATOR_SETTINGS,
   DEFAULT_SITE_SETTINGS,
   type GeneratorSettings,
@@ -38,10 +39,17 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       about_body: data.about_body || d.about_body,
       features: parseBlocks(data.features, d.features),
       steps: parseBlocks(data.steps, d.steps),
+      enabled_providers: parseProviders(data.enabled_providers),
     };
   } catch {
     return d;
   }
+}
+
+function parseProviders(value: unknown): string[] {
+  if (!Array.isArray(value)) return [...ALL_PROVIDER_IDS];
+  const ids = value.map(String).filter((id) => ALL_PROVIDER_IDS.includes(id));
+  return ids.length > 0 ? ids : [...ALL_PROVIDER_IDS];
 }
 
 function parseBlocks(value: unknown, fallback: { title: string; body: string }[]) {

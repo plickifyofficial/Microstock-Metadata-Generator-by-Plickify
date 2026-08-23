@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { getAdminStatus } from "@/lib/auth";
 import AdminLogout from "@/components/admin/AdminLogout";
 import AdminSidebar from "@/components/admin/AdminSidebar";
-
 export const metadata = { title: "Admin" };
 
 /**
@@ -78,6 +77,7 @@ export default async function AdminLayout({
             "/admin/branding",
             "/admin/theme",
             "/admin/generator",
+            "/admin/providers",
             "/admin/admins",
             "/admin/usage",
           ].map((href) => (

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrReturn } from "@/lib/api/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getGeneratorSettings } from "@/lib/settings";
+import { getGeneratorSettings, getSiteSettings } from "@/lib/settings";
 import { buildPrompt, type PromptOptions } from "@/lib/ai/prompts";
 import { generateWithAi } from "@/lib/ai/generate";
 import { hashIp, rateLimit } from "@/lib/rateLimit";
@@ -137,15 +137,22 @@ export async function POST(request: Request) {
   const settings = await getGeneratorSettings();
   const options = buildOptions(body, settings);
 
-  // Optional visitor-supplied credentials (BYOK). Only known providers are
-  // accepted; otherwise the server env key is used.
-  const override =
-    typeof body.provider === "string" && typeof body.apiKey === "string" && body.apiKey.trim()
-      ? {
-          provider: body.provider.slice(0, 40),
-          apiKey: body.apiKey.trim().slice(0, 600),
-        }
-      : undefined;
+  // Optional visitor-supplied credentials (BYOK). The provider must be
+  // admin-enabled and known; otherwise the server env key is used.
+  const requestedProvider =
+    typeof body.provider === "string" ? body.provider.slice(0, 40).trim() : "";
+  const providedKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+  let override: { provider: string; apiKey: string } | undefined;
+  if (requestedProvider && providedKey) {
+    const site = await getSiteSettings();
+    if (!site.enabled_providers.includes(requestedProvider)) {
+      return NextResponse.json(
+        { error: `Provider "${requestedProvider}" is not enabled by the admin.` },
+        { status: 400 }
+      );
+    }
+    override = { provider: requestedProvider, apiKey: providedKey.slice(0, 600) };
+  }
 
   // Rate limit BEFORE calling the AI provider. 0 = unlimited.
   if (settings.rate_limit_per_hour > 0) {

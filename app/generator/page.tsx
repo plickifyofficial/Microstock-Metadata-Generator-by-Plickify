@@ -1,7 +1,7 @@
 import SiteHeader from "@/components/branding/SiteHeader";
 import SiteFooter from "@/components/branding/SiteFooter";
 import GeneratorWorkbench from "@/components/generator/GeneratorWorkbench";
-import { getGeneratorSettings } from "@/lib/settings";
+import { getGeneratorSettings, getSiteSettings } from "@/lib/settings";
 
 export const metadata = {
   title: "AI Metadata Generator",
@@ -9,7 +9,10 @@ export const metadata = {
 };
 
 export default async function GeneratorPage() {
-  const settings = await getGeneratorSettings();
+  const [settings, siteSettings] = await Promise.all([
+    getGeneratorSettings(),
+    getSiteSettings(),
+  ]);
 
   return (
     <>
@@ -21,7 +24,10 @@ export default async function GeneratorPage() {
             Upload one or more images. No account needed.
           </p>
           <div className="mt-8">
-            <GeneratorWorkbench settings={settings} />
+            <GeneratorWorkbench
+              settings={settings}
+              enabledProviders={siteSettings.enabled_providers}
+            />
           </div>
         </div>
       </main>

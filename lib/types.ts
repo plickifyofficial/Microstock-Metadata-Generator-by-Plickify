@@ -20,7 +20,15 @@ export interface SiteSettings {
   about_body: string;
   features: ContentBlock[];
   steps: ContentBlock[];
+  /** Provider ids the admin has enabled for the API Keys modal. */
+  enabled_providers: string[];
 }
+
+export const ALL_PROVIDER_IDS = [
+  "cloudflare", "groq", "gemini", "mistral", "openai", "openrouter",
+  "nvidia", "github", "cohere", "together", "sambanova", "deepinfra",
+  "cerebras",
+];
 
 export interface GeneratorSettings {
   title_length_min: number;
@@ -142,6 +150,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     { title: "Generate", body: "The AI analyzes each image and writes marketplace-ready metadata." },
     { title: "Export", body: "Review, tweak if needed, then download a platform-perfect CSV." },
   ],
+  enabled_providers: ALL_PROVIDER_IDS,
 };
 
 export const DEFAULT_GENERATOR_SETTINGS: GeneratorSettings = {

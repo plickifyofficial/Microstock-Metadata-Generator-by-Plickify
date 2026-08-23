@@ -69,7 +69,13 @@ interface Stats {
   failed: number;
 }
 
-export default function GeneratorWorkbench({ settings }: { settings: GeneratorSettings }) {
+export default function GeneratorWorkbench({
+  settings,
+  enabledProviders,
+}: {
+  settings: GeneratorSettings;
+  enabledProviders: string[];
+}) {
   const user = useSyncExternalStore(subscribeUserSettings, getUserSettings, getServerUserSettings);
   const platform = useSyncExternalStore(subscribeUserSettings, getPlatform, getServerPlatform);
   const exportExt = useSyncExternalStore(subscribeUserSettings, getExportExt, getServerExportExt);
@@ -200,7 +206,9 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     const file = new File([blob], item.filename, { type: blob.type || "image/jpeg" });
     const prepared = await prepareImage(file);
 
-    const attempts = buildAttemptPlan();
+    const attempts = buildAttemptPlan().filter((a) =>
+      enabledProviders.includes(a.providerId)
+    );
     const payloadBase = {
       filename: item.filename,
       mimeType: prepared.mimeType,
@@ -614,7 +622,11 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
         </div>
       </div>
 
-      <ApiKeysModal open={showApiKeys} onClose={() => setShowApiKeys(false)} />
+      <ApiKeysModal
+        open={showApiKeys}
+        onClose={() => setShowApiKeys(false)}
+        enabledProviders={enabledProviders}
+      />
 
       <SuccessModal
         open={showSuccess}

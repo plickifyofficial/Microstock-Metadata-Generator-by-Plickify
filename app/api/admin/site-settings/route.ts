@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminOrReturn } from "@/lib/api/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSiteSettings } from "@/lib/settings";
+import { ALL_PROVIDER_IDS } from "@/lib/types";
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -42,6 +43,17 @@ export async function POST(request: Request) {
     if (typeof body[f] === "string") {
       patch[f] = (body[f] as string).slice(0, 5000);
     }
+  }
+
+  // Enabled AI providers.
+  if ("enabled_providers" in body) {
+    if (!Array.isArray(body.enabled_providers)) {
+      return NextResponse.json({ error: "enabled_providers must be a list." }, { status: 400 });
+    }
+    const ids = body.enabled_providers
+      .map((v) => String(v).trim())
+      .filter((id) => ALL_PROVIDER_IDS.includes(id));
+    patch.enabled_providers = ids;
   }
 
   // Repeater blocks (features / steps).
