@@ -29,7 +29,78 @@ export interface GeneratedMetadata {
   description: string;
   keywords: string[];
   category?: string;
+  /** Freepik (Magnific) extras */
+  prompt?: string;
+  baseModel?: string;
 }
+
+/** Generator tool mode, mirroring CSV Tree. */
+export type GenerationMode = "metadata" | "img2prompt";
+
+/**
+ * Per-visitor generator options (persisted in the visitor's localStorage).
+ * Mirrors every control of the CSV Tree Generator sidebar.
+ */
+export interface GeneratorUserSettings {
+  mode: GenerationMode;
+  // metadata mode
+  titleLengthMin: number;
+  titleLengthMax: number;
+  keywordsCountMin: number;
+  keywordsCountMax: number;
+  usePrefix: boolean;
+  prefix: string;
+  useSuffix: boolean;
+  suffix: string;
+  useNegativeTitle: boolean;
+  negativeTitleWords: string;
+  useNegativeKeywords: boolean;
+  negativeKeywords: string;
+  // img2prompt mode
+  promptLengthMin: number;
+  promptLengthMax: number;
+  whiteBackground: boolean;
+  cameraParameters: boolean;
+  useNegativePrompt: boolean;
+  negativePromptWords: string;
+  // shared optional block
+  singleWordKw: boolean;
+  silhouette: boolean;
+  transparent: boolean;
+  useCustomPrompt: boolean;
+  customPrompt: string;
+  useProhibitedWords: boolean;
+  prohibitedWords: string;
+}
+
+export const DEFAULT_USER_SETTINGS: GeneratorUserSettings = {
+  mode: "metadata",
+  titleLengthMin: 40,
+  titleLengthMax: 100,
+  keywordsCountMin: 20,
+  keywordsCountMax: 30,
+  usePrefix: false,
+  prefix: "",
+  useSuffix: false,
+  suffix: "",
+  useNegativeTitle: false,
+  negativeTitleWords: "",
+  useNegativeKeywords: false,
+  negativeKeywords: "",
+  promptLengthMin: 300,
+  promptLengthMax: 700,
+  whiteBackground: false,
+  cameraParameters: false,
+  useNegativePrompt: false,
+  negativePromptWords: "",
+  singleWordKw: false,
+  silhouette: false,
+  transparent: false,
+  useCustomPrompt: false,
+  customPrompt: "",
+  useProhibitedWords: false,
+  prohibitedWords: "",
+};
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   site_name: "Microstock Metadata Generator",

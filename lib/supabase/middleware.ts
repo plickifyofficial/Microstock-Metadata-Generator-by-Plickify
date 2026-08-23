@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const PUBLIC_PATHS = ["/login", "/auth/callback"];
+
 /**
- * Refreshes the Supabase auth session cookie on every matched request so
- * server components always see a valid session.
+ * 1. Refreshes the Supabase auth session on every request.
+ * 2. Gates the ENTIRE site behind authentication: only signed-in users can
+ *    view any page. Authorization (admin vs regular Google account) is then
+ *    enforced per-route server-side (/admin layout, /api routes).
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -27,8 +31,23 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: do not run code between createServerClient and getUser().
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser(); // IMPORTANT: no code between client creation and getUser()
+
+  const { pathname } = request.nextUrl;
+  const isPublic =
+    PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    pathname.startsWith("/_next") ||
+    /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname);
+
+  // Signed-out visitors: everything redirects to /login.
+  if (!user && !isPublic && pathname !== "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = `?next=${encodeURIComponent(pathname)}`;
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }

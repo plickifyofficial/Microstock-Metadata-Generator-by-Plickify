@@ -10,9 +10,9 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; next?: string }>;
 }) {
   const params = await searchParams;
-  // Already signed in as admin? Straight to the panel.
+  // Already signed in as admin? Straight in.
   const { isAdmin } = await getAdminStatus();
-  if (isAdmin) redirect(params.next?.startsWith("/") ? params.next : "/admin");
+  if (isAdmin) redirect(params.next?.startsWith("/") ? params.next : "/");
 
   return (
     <main className="flex-1 flex items-center justify-center px-4 py-16">

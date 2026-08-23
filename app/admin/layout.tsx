@@ -12,6 +12,7 @@ const NAV = [
   { href: "/admin/theme", label: "Theme" },
   { href: "/admin/generator", label: "Generator Settings" },
   { href: "/admin/ai", label: "AI Settings" },
+  { href: "/admin/admins", label: "Admins" },
   { href: "/admin/usage", label: "Usage" },
 ];
 

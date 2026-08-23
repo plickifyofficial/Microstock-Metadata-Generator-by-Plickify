@@ -1,7 +1,8 @@
-import type { GeneratedMetadata, GeneratorSettings } from "@/lib/types";
-import { resolveProvider } from "@/lib/ai/providers";
+import type { GeneratedMetadata } from "@/lib/types";
+import { resolveProvider, type ResolvedProvider } from "@/lib/ai/providers";
+import type { PromptOptions } from "@/lib/ai/prompts";
 
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 90_000;
 
 export interface GenerateInput {
   imageBase64: string; // raw base64, no data: prefix
@@ -10,48 +11,55 @@ export interface GenerateInput {
 }
 
 export interface GenerateOutcome {
-  metadata: GeneratedMetadata;
+  metadata: GeneratedMetadata | null; // metadata mode
+  promptText: string | null; // img2prompt mode
   provider: string;
   model: string;
   durationMs: number;
 }
 
 /**
- * Calls the configured vision LLM and returns parsed + enforced metadata.
- * Throws with a readable message on configuration or API failure.
+ * Calls a vision LLM using either visitor-supplied credentials
+ * ({provider, apiKey}) or the server env fallback.
  */
-export async function generateMetadata(
+export async function generateWithAi(
   input: GenerateInput,
-  settings: GeneratorSettings
+  options: PromptOptions,
+  override?: { provider?: string; apiKey?: string }
 ): Promise<GenerateOutcome> {
   const started = Date.now();
-  const resolved = resolveProvider();
+  const resolved = resolveProvider(override);
   if (!resolved) {
     throw new Error(
-      "AI is not configured. Set AI_PROVIDER and AI_API_KEY in your environment."
+      override?.apiKey
+        ? `Unknown provider "${override.provider}".`
+        : "No API key available. Add keys in API Keys or set AI_PROVIDER/AI_API_KEY on the server."
     );
   }
 
-  const rawText =
-    resolved.def.kind === "gemini"
-      ? await callGemini(resolved, input)
-      : await callOpenAICompatible(resolved, input);
+  let rawText = "";
+  if (resolved.def.kind === "gemini") rawText = await callGemini(resolved, input);
+  else if (resolved.def.kind === "cloudflare") rawText = await callCloudflare(resolved, input);
+  else rawText = await callOpenAICompatible(resolved, input);
+
+  const durationMs = Date.now() - started;
+
+  if (options.mode === "img2prompt") {
+    let p = extractImg2PromptText(rawText);
+    p = enforcePrompt(p, options);
+    return { metadata: null, promptText: p, provider: resolved.def.id, model: resolved.model, durationMs };
+  }
 
   const parsed = parseJsonResponse(rawText);
-  const metadata = enforceBounds(parsed, settings);
-
-  return {
-    metadata,
-    provider: resolved.def.id,
-    model: resolved.model,
-    durationMs: Date.now() - started,
-  };
+  const metadata = enforceMetadata(parsed, options);
+  return { metadata, promptText: null, provider: resolved.def.id, model: resolved.model, durationMs };
 }
 
-async function callOpenAICompatible(
-  provider: NonNullable<ReturnType<typeof resolveProvider>>,
-  input: GenerateInput
-): Promise<string> {
+/* ---------------------------------------------------------------------- */
+/* Provider calls                                                          */
+/* ---------------------------------------------------------------------- */
+
+async function callOpenAICompatible(provider: ResolvedProvider, input: GenerateInput): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -86,17 +94,58 @@ async function callOpenAICompatible(
       throw new Error(`AI request failed (${res.status}): ${truncate(body, 300)}`);
     }
     const json = await res.json();
-    const content = json?.choices?.[0]?.message?.content;
-    return normalizeContent(content);
+    return normalizeContent(json?.choices?.[0]?.message?.content);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function callGemini(
-  provider: NonNullable<ReturnType<typeof resolveProvider>>,
-  input: GenerateInput
-): Promise<string> {
+async function callCloudflare(provider: ResolvedProvider, input: GenerateInput): Promise<string> {
+  // Key format: ACCOUNT_ID:API_TOKEN
+  const sep = provider.apiKey.indexOf(":");
+  if (sep <= 0) throw new Error("Cloudflare key must be ACCOUNT_ID:API_TOKEN.");
+  const accountId = provider.apiKey.slice(0, sep);
+  const token = provider.apiKey.slice(sep + 1);
+  const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${encodeURIComponent(provider.model)}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: input.prompt },
+              {
+                type: "image_url",
+                image_url: { url: `data:${input.mimeType};base64,${input.imageBase64}` },
+              },
+            ],
+          },
+        ],
+        max_tokens: 1024,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`AI request failed (${res.status}): ${truncate(body, 300)}`);
+    }
+    const json = await res.json();
+    return normalizeContent(json?.result?.response ?? json?.result?.content ?? "");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callGemini(provider: ResolvedProvider, input: GenerateInput): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${provider.model}:generateContent?key=${encodeURIComponent(provider.apiKey)}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -139,11 +188,7 @@ function normalizeContent(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((p) =>
-        typeof p === "string"
-          ? p
-          : typeof p?.text === "string"
-            ? p.text
-            : ""
+        typeof p === "string" ? p : typeof p?.text === "string" ? p.text : ""
       )
       .join("");
   }
@@ -154,6 +199,10 @@ function normalizeContent(content: unknown): string {
   }
   return "";
 }
+
+/* ---------------------------------------------------------------------- */
+/* Response parsing                                                        */
+/* ---------------------------------------------------------------------- */
 
 /**
  * Vision LLMs love wrapping JSON in code fences / prose even when told not
@@ -180,9 +229,8 @@ export function parseJsonResponse(raw: string): Partial<GeneratedMetadata> {
       else if (ch === "}") {
         depth--;
         if (depth === 0) {
-          const candidate = text.slice(start, i + 1);
           try {
-            return JSON.parse(candidate);
+            return JSON.parse(text.slice(start, i + 1));
           } catch {
             break;
           }
@@ -194,22 +242,101 @@ export function parseJsonResponse(raw: string): Partial<GeneratedMetadata> {
 }
 
 /**
- * Deterministic post-processing so the output always respects the admin's
- * configured bounds regardless of how well the model followed instructions.
+ * Port of CSV Tree's extractImg2PromptText: vision models often ignore
+ * "plain text only" and emit JSON or fenced text. Salvage the prompt.
  */
-export function enforceBounds(
+export function extractImg2PromptText(raw: string): string {
+  if (!raw) return "";
+  let text = String(raw).trim();
+
+  const fence = text.match(/^```(?:json|text)?\s*\n?([\s\S]*?)\n?```$/i);
+  if (fence) text = fence[1].trim();
+
+  if (text.startsWith("{")) {
+    try {
+      const obj = JSON.parse(text);
+      const candidate =
+        (typeof obj.prompt === "string" && obj.prompt) ||
+        (typeof obj.text === "string" && obj.text) ||
+        (typeof obj.description === "string" && obj.description) ||
+        (typeof obj.image_prompt === "string" && obj.image_prompt) ||
+        "";
+      if (candidate) return candidate.trim();
+    } catch {
+      const m = text.match(/"prompt"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (m) {
+        try {
+          return JSON.parse(`"${m[1]}"`);
+        } catch {
+          return m[1];
+        }
+      }
+    }
+  }
+  return text;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Enforcement - port of CSV Tree's enforceUserSettings                    */
+/* ---------------------------------------------------------------------- */
+
+function stripBannedWords(text: string, csv: string): string {
+  if (!csv || !text) return text;
+  const words = csv.split(",").map((w) => w.trim()).filter(Boolean);
+  if (!words.length) return text;
+  let out = String(text);
+  for (const w of words) {
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`\\b${escaped}\\b`, "gi"), "");
+  }
+  return out.replace(/\s{2,}/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+}
+
+function filterBannedKeywords(keywords: string[], csv: string): string[] {
+  if (!Array.isArray(keywords) || !csv) return keywords;
+  const banned = new Set(
+    csv.split(",").map((w) => w.trim().toLowerCase()).filter(Boolean)
+  );
+  if (!banned.size) return keywords;
+  return keywords.filter((k) => !banned.has(k.trim().toLowerCase()));
+}
+
+function applyAffix(text: string, prefix: string, suffix: string): string {
+  let out = String(text || "").trim();
+  if (prefix && !out.toLowerCase().startsWith(prefix.toLowerCase())) {
+    const sep = /\s$/.test(prefix) ? "" : " ";
+    out = `${prefix}${sep}${out}`;
+  }
+  if (suffix && !out.toLowerCase().endsWith(suffix.toLowerCase())) {
+    const sep = /^\s/.test(suffix) ? "" : " ";
+    out = `${out}${sep}${suffix}`;
+  }
+  return out.replace(/\s{2,}/g, " ").trim();
+}
+
+function truncateWordBoundary(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  return text.slice(0, maxChars).replace(/\s+\S*$/, "").trim();
+}
+
+export function enforceMetadata(
   meta: Partial<GeneratedMetadata>,
-  s: GeneratorSettings
+  o: PromptOptions
 ): GeneratedMetadata {
+  // Title: banned words -> affixes -> word-boundary truncation to max.
   let title = typeof meta.title === "string" ? meta.title.trim() : "";
+  title = stripBannedWords(title, o.negativeTitleWords);
+  title = applyAffix(title, o.prefix, o.suffix);
+  title = truncateWordBoundary(title, o.titleLengthMax);
+
+  // Description.
   let description = typeof meta.description === "string" ? meta.description.trim() : "";
-  let keywords = Array.isArray(meta.keywords) ? meta.keywords.map(String) : [];
-  let category = typeof meta.category === "string" ? meta.category.trim() : "";
+  description = stripBannedWords(description, o.prohibitedWords);
 
-  title = truncateAtWord(title, s.title_length_max);
-
-  // Dedupe keywords case-insensitively, trim, drop empties.
+  // Keywords: banned -> trim/dedupe (case-insensitive) -> cap at max.
   const seen = new Set<string>();
+  let keywords = Array.isArray(meta.keywords) ? meta.keywords.map(String) : [];
+  keywords = filterBannedKeywords(keywords, o.negativeKeywords);
   keywords = keywords
     .map((k) => k.trim().replace(/\s+/g, " "))
     .filter((k) => k.length > 0 && k.length <= 60)
@@ -219,29 +346,40 @@ export function enforceBounds(
       seen.add(key);
       return true;
     })
-    .slice(0, Math.max(s.keywords_count_max, s.keywords_count_min));
+    .slice(0, Math.max(o.keywordsCountMax, o.keywordsCountMin));
 
-  description = truncateAtWord(description, 2000);
-
-  if (
-    category &&
-    Array.isArray(s.categories) &&
-    s.categories.length > 0
-  ) {
-    const match = s.categories.find(
-      (c) => c.toLowerCase() === category.toLowerCase()
-    );
-    category = match || category;
+  // Category snap to admin list when possible.
+  let category = typeof meta.category === "string" ? meta.category.trim() : "";
+  if (category && o.includeCategory && o.categories.length > 0) {
+    category = o.categories.find((c) => c.toLowerCase() === category.toLowerCase()) || category;
   }
 
-  return { title, description, keywords, category: category || undefined };
+  // Freepik extras.
+  let freepikPrompt: string | undefined;
+  let baseModel: string | undefined;
+  if (o.platform === "freepik") {
+    freepikPrompt = truncateWordBoundary(
+      stripBannedWords(typeof meta.prompt === "string" ? meta.prompt.trim() : "", o.prohibitedWords),
+      250
+    );
+    baseModel = typeof meta.baseModel === "string" && meta.baseModel.trim() ? meta.baseModel.trim() : "leonardo";
+  }
+
+  return {
+    title,
+    description: truncateWordBoundary(description, 2000),
+    keywords,
+    category: category || undefined,
+    prompt: freepikPrompt,
+    baseModel,
+  };
 }
 
-export function truncateAtWord(text: string, maxChars: number): string {
-  if (!text || text.length <= maxChars) return text;
-  const cut = text.slice(0, maxChars);
-  const lastSpace = cut.lastIndexOf(" ");
-  return lastSpace > maxChars * 0.5 ? cut.slice(0, lastSpace) : cut;
+export function enforcePrompt(promptText: string, o: PromptOptions): string {
+  let p = stripBannedWords(promptText, o.negativePromptWords);
+  p = applyAffix(p, o.prefix, o.suffix);
+  p = truncateWordBoundary(p, o.promptLengthMax);
+  return p;
 }
 
 function truncate(text: string, max: number): string {

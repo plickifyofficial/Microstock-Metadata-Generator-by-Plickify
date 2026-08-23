@@ -18,7 +18,9 @@ export type CsvField =
   | "title"
   | "description"
   | "keywords"
-  | "category";
+  | "category"
+  | "prompt"
+  | "baseModel";
 
 export const PLATFORMS: PlatformFormat[] = [
   {
@@ -32,7 +34,7 @@ export const PLATFORMS: PlatformFormat[] = [
   {
     id: "adobestock",
     name: "Adobe Stock",
-    description: "Filename, Title, Keywords, Category (no description column).",
+    description: "Filename, Title, Keywords, Category.",
     headers: ["Filename", "Title", "Keywords", "Category"],
     separator: ",",
     fields: ["filename", "title", "keywords", "category"],
@@ -47,11 +49,11 @@ export const PLATFORMS: PlatformFormat[] = [
   },
   {
     id: "freepik",
-    name: "Freepik",
-    description: "Standard metadata columns for Freepik uploads.",
-    headers: ["File name", "Title", "Keywords", "Category"],
+    name: "Magnific (freepik)",
+    description: "Semicolon-delimited; includes Prompt + Base-Model columns.",
+    headers: ["File name", "Title", "Keywords", "Prompt", "Base-Model"],
     separator: ";",
-    fields: ["filename", "title", "keywords", "category"],
+    fields: ["filename", "title", "keywords", "prompt", "baseModel"],
   },
   {
     id: "vecteezy",
@@ -88,7 +90,7 @@ export const PLATFORMS: PlatformFormat[] = [
   {
     id: "pond5",
     name: "Pond5",
-    description: "Standard 4-column metadata for Pond5 footage.",
+    description: "Standard metadata for Pond5 footage.",
     headers: ["Filename", "Title", "Description", "Keywords"],
     separator: ",",
     fields: ["filename", "title", "description", "keywords"],
@@ -105,16 +107,26 @@ export interface CsvRow {
   description?: string;
   keywords?: string[];
   category?: string;
+  prompt?: string;
+  baseModel?: string;
+}
+
+/** Replace/add a filename extension (no dot), e.g. 'eps'. */
+export function changeExtension(filename: string, target: string): string {
+  if (!filename || !target) return filename;
+  const dot = filename.lastIndexOf(".");
+  const stem = dot > 0 ? filename.slice(0, dot) : filename;
+  return `${stem}.${target}`;
 }
 
 function quote(value: string): string {
   return `"${(value ?? "").toString().replace(/"/g, '""')}"`;
 }
 
-function valueFor(field: CsvField, row: CsvRow): string {
+function valueFor(field: CsvField, row: CsvRow, exportExt: string): string {
   switch (field) {
     case "filename":
-      return row.filename || "";
+      return exportExt ? changeExtension(row.filename || "", exportExt) : row.filename || "";
     case "title":
       return row.title || "";
     case "description":
@@ -123,18 +135,44 @@ function valueFor(field: CsvField, row: CsvRow): string {
       return Array.isArray(row.keywords) ? row.keywords.join(",") : row.keywords || "";
     case "category":
       return row.category || "";
+    case "prompt":
+      return row.prompt || "";
+    case "baseModel":
+      return row.baseModel || "";
     default:
       return "";
   }
 }
 
-export function buildCSV(platformId: string, rows: CsvRow[]): string {
+export function buildCSV(platformId: string, rows: CsvRow[], options?: { exportExt?: string }): string {
   const platform = getPlatform(platformId);
   const sep = platform.separator;
+  const ext = options?.exportExt || "";
   const headerLine = platform.headers.map(quote).join(sep);
-  const dataLines = (rows || [])
-    .map((row) => platform.fields.map((f) => quote(valueFor(f, row))).join(sep));
+  const dataLines = (rows || []).map((row) =>
+    platform.fields.map((f) => quote(valueFor(f, row, ext))).join(sep)
+  );
   return [headerLine, ...dataLines].join("\r\n");
+}
+
+/** Plain text of all prompts separated by blank lines (CSV Tree parity). */
+export function buildPromptTxt(rows: CsvRow[]): string {
+  return (rows || [])
+    .map((r) => r.prompt || r.title || "")
+    .map((s) => s.replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/** One prompt per CSV row with blank rows between (CSV Tree parity). */
+export function buildPromptCsv(rows: CsvRow[]): string {
+  const lines = (rows || [])
+    .map((r) => r.prompt || r.title || "")
+    .map((s) => s.replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
+    .filter(Boolean);
+  return lines
+    .flatMap((line, i) => (i === lines.length - 1 ? [line] : [line, ""]))
+    .join("\r\n");
 }
 
 export function buildJSON(rows: CsvRow[]): string {
@@ -143,10 +181,10 @@ export function buildJSON(rows: CsvRow[]): string {
       filename: row.filename,
       title: row.title,
       description: row.description,
-      keywords: Array.isArray(row.keywords)
-        ? row.keywords.join(", ")
-        : row.keywords,
+      keywords: Array.isArray(row.keywords) ? row.keywords.join(", ") : row.keywords,
       category: row.category,
+      ...(row.prompt ? { prompt: row.prompt } : {}),
+      ...(row.baseModel ? { baseModel: row.baseModel } : {}),
     })),
     null,
     2
@@ -162,6 +200,7 @@ export function buildTXT(rows: CsvRow[]): string {
         `Description: ${row.description}`,
         `Keywords: ${Array.isArray(row.keywords) ? row.keywords.join(", ") : row.keywords}`,
         row.category ? `Category: ${row.category}` : "",
+        row.prompt ? `Prompt: ${row.prompt}` : "",
       ]
         .filter(Boolean)
         .join("\n")

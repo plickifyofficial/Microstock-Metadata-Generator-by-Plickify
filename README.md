@@ -3,14 +3,31 @@
 AI-powered metadata generator for microstock contributors. Upload images and
 instantly get optimized **titles, descriptions, keywords and categories**,
 then copy or export them as platform-ready CSVs (Adobe Stock, Shutterstock,
-Freepik, Vecteezy, Dreamstime, 123RF, Depositphotos, Pond5).
+Freepik/Magnific, Vecteezy, Dreamstime, 123RF, Depositphotos, Pond5).
 
-Visitors use the generator **without any account**. Only an authorized
-administrator can sign in (Google OAuth) and manage the site from the Admin
-Panel.
+**The whole site is admin-only.** Visitors cannot sign up or log in — only
+authorized Google accounts (listed in `admin_users`) can enter the site and
+use the generator or the Admin Panel.
 
 Fork this repository, connect your own Supabase project + Vercel deployment,
-and you have your own branded metadata website.
+and you have your own private, branded metadata tool.
+
+## Highlights
+
+- **Full CSV Tree Generator parity**: Metadata mode + Image-to-Prompt mode,
+  per-platform tiles, title/keyword length sliders, prefix/suffix, negative
+  words, prohibited words, single-word keywords, silhouette/transparent
+  toggles, custom instructions, PNG auto-note, filename extension override,
+  prompts .TXT/.CSV exports, batch stats with ETA, stop button and one
+  automatic retry of failed images.
+- **13-provider BYOK system**: add your own API keys (Groq, Gemini, OpenAI,
+  OpenRouter, Mistral, Cloudflare, NVIDIA, GitHub Models, Cohere, Together,
+  SambaNova, DeepInfra, Cerebras) from the in-app API Keys modal — with
+  multi-key rotation, automatic cross-provider fallback, RPM throttling,
+  cooldown/rehab badges and tutorial links. A server env key works as a
+  fallback when no personal keys are configured.
+- **Admin Panel**: dashboard, site settings, branding (logo/favicon/colors),
+  theme, generator settings, AI status, admin management, usage logs.
 
 ---
 
@@ -63,15 +80,38 @@ Your own Metadata Website
 
 ## 2. Features
 
-**Public**
-- AI metadata generation: title, description, keywords, category
-- Single image or bulk queue (sequential processing with rate limiting)
-- Drag & drop upload, client-side downscaling (fast + private: images are
-  processed transiently in memory and never stored permanently)
-- Editable result fields with per-field copy, Copy All, Regenerate
-- Platform CSV export templates (9 platforms) plus JSON and TXT export
-- Local browser history of recent generations (stored only on the visitor's
-  device)
+**Access**
+- Entire site gated behind Google login (middleware-level redirect)
+- Only `admin_users` rows with `status = 'active'` can enter
+- No registration, no passwords — Google OAuth only
+
+**Generator (admin-only, CSV Tree parity)**
+- Two modes: **Metadata** and **Image-to-Prompt** (`?mode=img2prompt`)
+- Metadata: title/description/keywords/category (+ Freepik prompt & base model)
+- Controls: platform tiles (9 platforms), title length min/max sliders,
+  keywords count min/max sliders, prefix/suffix, negative title words,
+  negative keywords, negative prompt words, prohibited words,
+  single-word keywords, silhouette, transparent background, white
+  background, camera parameters, custom AI instructions
+- PNG files automatically get "isolated on transparent background" phrasing
+- Bulk queue with progress stats (done/total/success/failed + ETA),
+  Stop button, and one automatic retry of failed images
+- Deterministic enforcement: word-boundary truncation, banned-word
+  stripping, prefix/suffix application, keyword dedupe/cap
+
+**BYOK API keys (13 providers)**
+- Add your own keys per browser; multi-key rotation per provider
+- Automatic fallback across providers on failure/rate limit
+- Client RPM throttling per provider limits
+- Key health badges: READY / ACTIVE / retry-in-Xm cooldowns
+- Tutorial links to every provider's key page + free-tier info
+
+**Export**
+- Platform templates: General, Adobe Stock, Shutterstock, Magnific (freepik),
+  Vecteezy, 123RF, Dreamstime, Depositphotos, Pond5
+- Filename extension override (eps/ai/svg/jpg/png/psd...)
+- CSV / JSON / TXT exports; prompt mode adds all-prompts .TXT/.CSV
+- Local browser history of recent generations
 
 **Admin (`/admin`, Google login required)**
 - Dashboard: total generations, last-24h generations, recent activity
@@ -80,7 +120,8 @@ Your own Metadata Website
 - Theme: default light/dark/system, preset colors, custom HEX colors
 - Generator Settings: title/description/keyword bounds, category list,
   language, extra AI instructions, batch size, hourly rate limit
-- AI Settings: read-only status of the configured provider/model
+- AI Settings: read-only status of the server env fallback key
+- Admins: add/disable/remove admin Google accounts from the UI
 - Usage: system-level generation log (no personal data)
 
 ## 3. Tech Stack
@@ -254,24 +295,32 @@ update public.admin_users set status = 'disabled' where email = 'someone@gmail.c
 
 ## 13. AI API Setup
 
-Pick one provider and set its key:
+You have two options — use either or both:
 
-- **Groq (default):** create a key at <https://console.groq.com/keys>,
-  then `AI_PROVIDER=groq`, `AI_API_KEY=gsk_...`.
-- **OpenAI:** <https://platform.openai.com/api-keys> →
-  `AI_PROVIDER=openai`.
-- **Gemini:** <https://aistudio.google.com/app/apikey> →
-  `AI_PROVIDER=gemini`.
-- **OpenRouter:** <https://openrouter.ai/keys> → `AI_PROVIDER=openrouter`.
-- **Mistral:** <https://console.mistral.ai/api-keys/> → `AI_PROVIDER=mistral`.
-- **Custom:** any OpenAI-compatible vision endpoint →
-  `AI_PROVIDER=custom` + `AI_BASE_URL=https://host/v1`.
+**Option A: your own keys in the browser (BYOK, recommended)**
 
-Optionally override the model with `AI_MODEL`.
+1. Sign in as admin and open the generator.
+2. Click **API Keys** in the Controls panel.
+3. Pick a provider, follow its docs link to create a free key
+   (Groq is the default recommendation: <https://console.groq.com/keys>),
+   paste it and press **Add**.
+4. Repeat for any other providers you want as automatic fallbacks.
 
-The key is used **only server-side** inside `/api/generate`; it never
-reaches the browser. Requests are rate-limited per IP
-(`rate_limit_per_hour`, editable in Admin → Generator Settings).
+Keys are stored only in your browser (never on the server) and rotate
+automatically with cross-provider fallback and RPM throttling.
+
+**Option B: one server-side key via environment variables**
+
+Set `AI_PROVIDER` + `AI_API_KEY` (see section 7). This key is used whenever
+no personal keys are configured, entirely server-side.
+
+Supported providers: `groq` (default), `openai`, `gemini`, `openrouter`,
+`mistral`, `cloudflare`, `nvidia`, `github`, `cohere`, `together`,
+`sambanova`, `deepinfra`, `cerebras`, or any OpenAI-compatible endpoint via
+`AI_PROVIDER=custom` + `AI_BASE_URL`.
+
+All generation requests flow through `/api/generate` which validates the
+admin session, applies per-IP rate limits and logs usage.
 
 ## 14. Local Development
 
@@ -395,14 +444,19 @@ Run all migrations from section 9 in order.
 ## 22. Security Notes
 
 - Only Google OAuth exists; there are no passwords to leak.
-- Authorization = authenticated session **AND** active row in
-  `admin_users`, enforced server-side on every admin page and API route.
-- RLS enabled everywhere: anonymous visitors cannot write anything;
+- The entire site is gated behind authentication at the middleware level;
+  only active `admin_users` rows pass authorization on every page and API.
+- Admin management (add/disable/remove) is done from the Admin Panel with a
+  built-in guard that prevents removing the last active admin.
+- RLS enabled everywhere: clients cannot write anything;
   `usage_logs` is server-only; clients can read only their own admin row.
-- `SUPABASE_SERVICE_ROLE_KEY` and `AI_API_KEY` are used exclusively in
-  server-side code and never shipped to the browser.
+- BYOK keys live in the browser's localStorage only — never in the database.
+  They are forwarded per-request over HTTPS to your own server route, which
+  uses them solely to call the chosen provider.
+- `SUPABASE_SERVICE_ROLE_KEY` and the server env AI key are used exclusively
+  in server-side code and never shipped to the browser.
 - The generate API validates image type/size and applies a per-IP sliding
-  window rate limit before calling the AI provider.
+  window rate limit before calling any AI provider.
 - Uploaded generator images stay in memory only — nothing is persisted.
 - Usage logs store a salted IP hash, never raw IPs or personal data.
 
