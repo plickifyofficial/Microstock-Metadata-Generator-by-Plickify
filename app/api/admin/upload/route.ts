@@ -47,8 +47,14 @@ export async function POST(request: Request) {
     const path = `${kind}-${Date.now()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Overwrite-safe: unique path per upload; old files can be cleaned in
-    // the Supabase dashboard or via a scheduled cleanup later.
+    // Defensive: make sure the bucket is public so branding assets render.
+    // No-op when it is already public.
+    try {
+      await admin.storage.updateBucket("branding-assets", { public: true });
+    } catch {}
+
+    // Unique path per upload; old files can be cleaned in the Supabase
+    // dashboard or via a scheduled cleanup later.
     const { error } = await admin.storage
       .from("branding-assets")
       .upload(path, buffer, {

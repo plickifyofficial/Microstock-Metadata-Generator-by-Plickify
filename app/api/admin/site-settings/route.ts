@@ -58,16 +58,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Merge with existing row so partial updates don't blank other fields.
+    // Merge with the existing row so partial updates don't blank other
+    // fields, then UPSERT - if the row is missing (migrations not run yet)
+    // it is created instead of silently updating zero rows.
     const current = await getSiteSettings();
     const merged = { ...current, ...patch } as Record<string, unknown>;
     delete merged.updated_at;
 
     const admin = createAdminClient();
-    const { error } = await admin
-      .from("site_settings")
-      .update({ ...merged, updated_at: new Date().toISOString() })
-      .eq("id", 1);
+    const { error } = await admin.from("site_settings").upsert({
+      id: 1,
+      ...merged,
+      updated_at: new Date().toISOString(),
+    });
     if (error) throw error;
 
     return NextResponse.json({ ok: true });

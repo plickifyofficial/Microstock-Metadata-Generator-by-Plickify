@@ -435,8 +435,11 @@ Supported types are JPEG/PNG/WebP/GIF/BMP. Very large photos are downscaled
 automatically; make sure the original file is under ~7 MB after scaling.
 
 **Branding changes don't appear**
-Hard-refresh (Ctrl+Shift+R). Favicon changes can be cached aggressively by
-browsers.
+Hard-refresh the page (Ctrl+Shift+R). Favicon changes can be cached
+aggressively by browsers - reopen the tab or append `?v=1`. If saving shows
+an error mentioning a missing table/relation, run all migrations from
+section 9 first (the app upserts settings rows automatically once tables
+exist).
 
 **Database errors mentioning missing tables/policies**
 Run all migrations from section 9 in order.

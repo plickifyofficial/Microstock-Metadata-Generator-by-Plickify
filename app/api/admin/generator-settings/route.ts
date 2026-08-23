@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminOrReturn } from "@/lib/api/guard";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getGeneratorSettings } from "@/lib/settings";
 
 function toInt(v: unknown): number | null {
   const n = Number(v);
@@ -86,11 +87,18 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Merge with current values then UPSERT - the row gets created if it
+    // is missing, and partial updates keep every DB constraint satisfied.
+    const current = await getGeneratorSettings();
+    const merged = { ...current, ...patch } as Record<string, unknown>;
+    delete merged.updated_at;
+
     const admin = createAdminClient();
-    const { error } = await admin
-      .from("generator_settings")
-      .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq("id", 1);
+    const { error } = await admin.from("generator_settings").upsert({
+      id: 1,
+      ...merged,
+      updated_at: new Date().toISOString(),
+    });
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (err) {

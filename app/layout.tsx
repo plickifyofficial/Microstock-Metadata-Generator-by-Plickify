@@ -13,6 +13,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/*
+ * Every page renders per-request so Admin Panel changes (site name, logo,
+ * favicon, colors, theme) appear immediately - nothing is cached stale.
+ */
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
   return {
