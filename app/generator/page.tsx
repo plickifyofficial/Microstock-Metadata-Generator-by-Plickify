@@ -8,6 +8,10 @@ export const metadata = {
   description: "Upload images and generate titles, descriptions, keywords and categories instantly.",
 };
 
+/**
+ * Full-width tool layout: controls docked hard-left for the whole
+ * viewport height, metadata cards filling the remaining space.
+ */
 export default async function GeneratorPage() {
   const [settings, siteSettings] = await Promise.all([
     getGeneratorSettings(),
@@ -17,19 +21,11 @@ export default async function GeneratorPage() {
   return (
     <>
       <SiteHeader />
-      <main className="flex-1">
-        <div className="mx-auto max-w-4xl px-4 py-10">
-          <h1 className="text-3xl font-bold">AI Metadata Generator</h1>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Upload one or more images. No account needed.
-          </p>
-          <div className="mt-8">
-            <GeneratorWorkbench
-              settings={settings}
-              enabledProviders={siteSettings.enabled_providers}
-            />
-          </div>
-        </div>
+      <main className="flex-1 lg:flex lg:min-h-[calc(100vh-4rem)]">
+        <GeneratorWorkbench
+          settings={settings}
+          enabledProviders={siteSettings.enabled_providers}
+        />
       </main>
       <SiteFooter />
     </>

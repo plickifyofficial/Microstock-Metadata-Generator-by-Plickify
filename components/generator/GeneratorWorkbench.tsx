@@ -455,10 +455,17 @@ export default function GeneratorWorkbench({
 
   return (
     <>
-      <div className="grid gap-6 lg:grid-cols-[330px_1fr] items-start">
-        {/* Sticky sidebar - stays pinned while the right side scrolls */}
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-5.5rem)] lg:overflow-y-auto lg:pb-4 lg:pr-1 scroll-smooth">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface shadow-sm p-3 flex items-center justify-between gap-2">
+      <div className="lg:flex items-stretch w-full">
+        {/* Sidebar - docked hard-left, full viewport height, own scroll */}
+        <aside className="lg:w-[330px] lg:shrink-0 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:overflow-y-auto border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface-dark/60 p-4 space-y-4">
+          <div>
+            <h1 className="text-lg font-bold">AI Metadata Generator</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              No account needed. Images stay in your browser.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-background dark:bg-background shadow-sm p-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-sm font-bold">Controls</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
@@ -481,8 +488,8 @@ export default function GeneratorWorkbench({
           />
         </aside>
 
-        {/* Main column */}
-        <div className="space-y-5 min-w-0">
+        {/* Main column - cards fill the remaining space */}
+        <section className="flex-1 min-w-0 px-4 sm:px-6 py-6 space-y-5">
           {/* Toolbar */}
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface shadow-sm p-3 flex flex-wrap items-center gap-2">
             <button
@@ -619,7 +626,7 @@ export default function GeneratorWorkbench({
               )}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       <ApiKeysModal
