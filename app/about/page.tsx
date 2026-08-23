@@ -1,47 +1,58 @@
 import Link from "next/link";
 import SiteHeader from "@/components/branding/SiteHeader";
 import SiteFooter from "@/components/branding/SiteFooter";
+import { getSiteSettings } from "@/lib/settings";
 
 export const metadata = { title: "About" };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const s = await getSiteSettings();
+  const paragraphs = s.about_body
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
   return (
     <>
       <SiteHeader />
       <main className="flex-1">
         <div className="mx-auto max-w-3xl px-4 py-16">
-          <h1 className="text-3xl font-bold">About</h1>
-          <div className="mt-6 space-y-4 text-slate-600 dark:text-slate-400 leading-relaxed">
-            <p>
-              The Microstock Metadata Generator helps stock contributors write
-              better titles, descriptions, keywords and categories for their
-              images - in seconds instead of minutes.
-            </p>
-            <p>
-              Upload one or more images and an AI vision model analyzes each
-              photo, producing marketplace-optimized metadata you can review,
-              edit, copy, or export as a CSV matching your platform&apos;s
-              upload template (Adobe Stock, Shutterstock, Freepik, Vecteezy,
-              Dreamstime, 123RF, Depositphotos, Pond5 and more).
-            </p>
-            <p>
-              The generator is free to use without an account. Uploaded images
-              are processed transiently in memory and are never stored
-              permanently on the server.
-            </p>
+          <span className="inline-flex items-center rounded-full border border-brand/30 bg-brand/10 px-4 py-1.5 text-xs font-semibold text-brand">
+            {s.site_name}
+          </span>
+          <h1 className="mt-5 text-4xl font-bold tracking-tight">{s.about_title}</h1>
+
+          <div className="mt-8 rounded-2xl border border-slate-200 dark:border-slate-800 bg-surface dark:bg-surface p-7 sm:p-9">
+            <div className="space-y-5 text-slate-600 dark:text-slate-400 leading-relaxed">
+              {paragraphs.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
           </div>
 
-          <h2 className="mt-10 text-xl font-semibold">For site owners</h2>
+          {/* Feature recap */}
+          {s.features.length > 0 ? (
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {s.features.map((f, i) => (
+                <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+                  <h3 className="font-semibold text-sm">{f.title}</h3>
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">{f.body}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <h2 className="mt-12 text-xl font-semibold">For site owners</h2>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             This project is open source and self-hostable. Fork the repository,
             connect your own Supabase project and Vercel deployment, and run
-            your own branded metadata generator. See the README for complete
-            A-Z setup instructions.
+            your own branded metadata generator. The README has complete A-Z
+            setup instructions.
           </p>
 
           <Link
             href="/generator"
-            className="mt-8 inline-block rounded-xl bg-brand px-6 py-3 font-semibold text-white hover:opacity-90 transition-opacity"
+            className="mt-9 inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 font-semibold text-white shadow-lg shadow-brand/25 hover:shadow-brand/40 hover:-translate-y-0.5 transition-all"
           >
             Try the Generator
           </Link>

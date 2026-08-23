@@ -11,6 +11,7 @@ import {
  * renders even before Supabase is configured (first-run DX).
  */
 export async function getSiteSettings(): Promise<SiteSettings> {
+  const d = DEFAULT_SITE_SETTINGS;
   try {
     const admin = createAdminClient();
     const { data } = await admin
@@ -18,22 +19,40 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       .select("*")
       .eq("id", 1)
       .maybeSingle();
-    if (!data) return DEFAULT_SITE_SETTINGS;
+    if (!data) return d;
     return {
-      site_name: data.site_name || DEFAULT_SITE_SETTINGS.site_name,
-      site_description: data.site_description || DEFAULT_SITE_SETTINGS.site_description,
+      site_name: data.site_name || d.site_name,
+      site_description: data.site_description || d.site_description,
       logo_url: data.logo_url ?? null,
       favicon_url: data.favicon_url ?? null,
-      footer_text: data.footer_text || DEFAULT_SITE_SETTINGS.footer_text,
-      primary_color: data.primary_color || DEFAULT_SITE_SETTINGS.primary_color,
-      secondary_color: data.secondary_color || DEFAULT_SITE_SETTINGS.secondary_color,
+      footer_text: data.footer_text || d.footer_text,
+      primary_color: data.primary_color || d.primary_color,
+      secondary_color: data.secondary_color || d.secondary_color,
       theme_mode: (["light", "dark", "system"].includes(data.theme_mode)
         ? data.theme_mode
         : "system") as SiteSettings["theme_mode"],
+      hero_badge: data.hero_badge || d.hero_badge,
+      hero_title: data.hero_title || d.hero_title,
+      hero_subtitle: data.hero_subtitle || d.hero_subtitle,
+      about_title: data.about_title || d.about_title,
+      about_body: data.about_body || d.about_body,
+      features: parseBlocks(data.features, d.features),
+      steps: parseBlocks(data.steps, d.steps),
     };
   } catch {
-    return DEFAULT_SITE_SETTINGS;
+    return d;
   }
+}
+
+function parseBlocks(value: unknown, fallback: { title: string; body: string }[]) {
+  if (!Array.isArray(value)) return fallback;
+  const blocks = value
+    .map((b) => ({
+      title: typeof b?.title === "string" ? b.title.trim() : "",
+      body: typeof b?.body === "string" ? b.body.trim() : "",
+    }))
+    .filter((b) => b.title || b.body);
+  return blocks.length > 0 ? blocks : fallback;
 }
 
 export async function getGeneratorSettings(): Promise<GeneratorSettings> {

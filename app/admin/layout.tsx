@@ -2,24 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdminStatus } from "@/lib/auth";
 import AdminLogout from "@/components/admin/AdminLogout";
+import AdminSidebar from "@/components/admin/AdminSidebar";
 
 export const metadata = { title: "Admin" };
-
-const NAV = [
-  { href: "/admin", label: "Dashboard", exact: true },
-  { href: "/admin/settings", label: "Site Settings" },
-  { href: "/admin/branding", label: "Branding" },
-  { href: "/admin/theme", label: "Theme" },
-  { href: "/admin/generator", label: "Generator Settings" },
-  { href: "/admin/ai", label: "AI Settings" },
-  { href: "/admin/admins", label: "Admins" },
-  { href: "/admin/usage", label: "Usage" },
-];
 
 /**
  * Server-side guard for every /admin route. Unauthenticated visitors are
  * redirected to login; authenticated non-admins see Access Denied.
- * Never rely on client-side checks alone.
  */
 export default async function AdminLayout({
   children,
@@ -59,20 +48,21 @@ export default async function AdminLayout({
 
   return (
     <div className="flex-1 flex min-h-[calc(100vh-4rem)]">
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-slate-200 dark:border-slate-800 p-4 gap-1">
-        <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Admin Panel
-        </p>
-        {NAV.map((item) => (
-          <AdminNavLink key={item.href} {...item} />
-        ))}
-        <div className="mt-auto space-y-1">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-slate-200 dark:border-slate-800 p-4 gap-4 sticky top-16 self-start h-[calc(100vh-4rem)]">
+        <div>
+          <p className="px-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+            Admin Panel
+          </p>
+        </div>
+        <AdminSidebar />
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-0.5">
           <Link
             href="/"
-            className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            ← View Site
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+            View Site
           </Link>
           <AdminLogout />
         </div>
@@ -81,42 +71,31 @@ export default async function AdminLayout({
       {/* Mobile nav */}
       <div className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur p-2 overflow-x-auto">
         <div className="flex gap-1 w-max">
-          {NAV.map((item) => (
-            <AdminNavLink key={item.href} {...item} mobile />
+          {[
+            "/admin",
+            "/admin/settings",
+            "/admin/content",
+            "/admin/branding",
+            "/admin/theme",
+            "/admin/generator",
+            "/admin/admins",
+            "/admin/usage",
+          ].map((href) => (
+            <Link
+              key={href}
+              href={href}
+              className="whitespace-nowrap rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium"
+            >
+              {href === "/admin" ? "Dashboard" : href.replace("/admin/", "")}
+            </Link>
           ))}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-x-hidden pb-24 md:pb-8">
+      <div className="flex-1 overflow-x-hidden pb-24 md:pb-8 bg-slate-50/50 dark:bg-slate-900/20">
         <div className="mx-auto max-w-3xl px-4 py-8">{children}</div>
       </div>
     </div>
-  );
-}
-
-async function AdminNavLink({
-  href,
-  label,
-  exact,
-  mobile,
-}: {
-  href: string;
-  label: string;
-  exact?: boolean;
-  mobile?: boolean;
-}) {
-  // Server component links; active state handled by CSS via aria-current is
-  // not available server-side, so we keep it simple and style uniformly.
-  void exact;
-  return (
-    <Link
-      href={href}
-      className={`block whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-        mobile ? "border border-slate-200 dark:border-slate-700" : ""
-      }`}
-    >
-      {label}
-    </Link>
   );
 }

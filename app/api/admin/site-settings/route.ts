@@ -16,16 +16,49 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, unknown> = {};
 
-  const textFields = ["site_name", "site_description", "footer_text"] as const;
+  const textFields = [
+    "site_name",
+    "site_description",
+    "footer_text",
+    "hero_badge",
+    "hero_title",
+    "hero_subtitle",
+  ] as const;
   for (const f of textFields) {
     if (typeof body[f] === "string") {
-      const v = (body[f] as string).trim();
+      const v = (body[f] as string).trim().slice(0, f === "site_name" ? 100 : 400);
       if (!v && f === "site_name") {
         return NextResponse.json({ error: "Site name cannot be empty." }, { status: 400 });
       }
       patch[f] = v;
+    }
+  }
+
+  // Long-form about page content (paragraphs separated by blank lines).
+  const longFields = ["about_title", "about_body"] as const;
+  for (const f of longFields) {
+    if (typeof body[f] === "string") {
+      patch[f] = (body[f] as string).slice(0, 5000);
+    }
+  }
+
+  // Repeater blocks (features / steps).
+  for (const key of ["features", "steps"] as const) {
+    if (key in body) {
+      const arr = body[key];
+      if (!Array.isArray(arr)) {
+        return NextResponse.json({ error: `${key} must be a list.` }, { status: 400 });
+      }
+      const blocks = arr
+        .slice(0, 8)
+        .map((b) => ({
+          title: String(b?.title ?? "").trim().slice(0, 80),
+          body: String(b?.body ?? "").trim().slice(0, 400),
+        }))
+        .filter((b) => b.title || b.body);
+      patch[key] = blocks;
     }
   }
 
