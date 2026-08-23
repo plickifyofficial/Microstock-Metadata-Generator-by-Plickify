@@ -1,0 +1,37 @@
+name: Auto-sync with official repo
+
+on:
+  schedule:
+    - cron: "23 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository != 'plickifyofficial/Microstock-Metadata-Generator-by-Plickify'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge upstream changes into this fork
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          response=$(gh api \
+            -X POST \
+            "repos/${{ github.repository }}/merge-upstream" \
+            -f branch=main 2>&1) && status=ok || status=fail
+
+          echo "$response"
+
+          if [ "$status" = "fail" ]; then
+            if echo "$response" | grep -qi "409\|conflict"; then
+              echo "::warning::Upstream merge conflict detected. Open your repo on GitHub, press 'Sync fork', then resolve the conflicts manually."
+              exit 1
+            fi
+            echo "::notice::Nothing to sync or a transient error occurred. Will retry tomorrow."
+          else
+            merge_type=$(echo "$response" | jq -r '.merge_type // "none"')
+            echo "::notice::Sync result: ${merge_type}"
+          fi
