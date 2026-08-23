@@ -1,7 +1,7 @@
 /**
- * Per-platform CSV export formats for major microstock sites.
- * Headers, column order and separators follow each platform's official
- * upload-metadata template (ported from CSV Tree).
+ * Per-platform CSV export formats - byte-identical port of CSV Tree's
+ * csvFormats.js. Headers, column order and separators follow each
+ * platform's official upload-metadata template.
  */
 
 export interface PlatformFormat {
@@ -18,7 +18,6 @@ export type CsvField =
   | "title"
   | "description"
   | "keywords"
-  | "category"
   | "prompt"
   | "baseModel";
 
@@ -26,18 +25,18 @@ export const PLATFORMS: PlatformFormat[] = [
   {
     id: "general",
     name: "General",
-    description: "Standard 5-column metadata.",
-    headers: ["Filename", "Title", "Description", "Keywords", "Category"],
+    description: "Standard 4-column metadata (Filename, Title, Description, Keywords).",
+    headers: ["Filename", "Title", "Description", "Keywords"],
     separator: ",",
-    fields: ["filename", "title", "description", "keywords", "category"],
+    fields: ["filename", "title", "description", "keywords"],
   },
   {
     id: "adobestock",
     name: "Adobe Stock",
-    description: "Filename, Title, Keywords, Category.",
-    headers: ["Filename", "Title", "Keywords", "Category"],
+    description: "Filename, Title, Keywords (no description column).",
+    headers: ["Filename", "Title", "Keywords"],
     separator: ",",
-    fields: ["filename", "title", "keywords", "category"],
+    fields: ["filename", "title", "keywords"],
   },
   {
     id: "shutterstock",
@@ -90,7 +89,7 @@ export const PLATFORMS: PlatformFormat[] = [
   {
     id: "pond5",
     name: "Pond5",
-    description: "Standard metadata for Pond5 footage.",
+    description: "Standard 4-column metadata for Pond5 footage.",
     headers: ["Filename", "Title", "Description", "Keywords"],
     separator: ",",
     fields: ["filename", "title", "description", "keywords"],
@@ -100,6 +99,27 @@ export const PLATFORMS: PlatformFormat[] = [
 export function getPlatform(id: string): PlatformFormat {
   return PLATFORMS.find((p) => p.id === id) ?? PLATFORMS[0];
 }
+
+/**
+ * Field names the result card renders for the selected platform,
+ * mirroring the CSV export columns (minus filename).
+ *   Adobe Stock     -> title, keywords
+ *   Shutterstock    -> description, keywords
+ *   Magnific        -> title, keywords, prompt, baseModel
+ *   General / etc.  -> title, description, keywords
+ */
+export function getCardFields(platformId: string): CsvField[] {
+  const platform = getPlatform(platformId);
+  return (platform.fields || []).filter((f) => f !== "filename");
+}
+
+export const CARD_FIELD_LABELS: Record<string, string> = {
+  title: "Title",
+  description: "Description",
+  keywords: "Keywords",
+  prompt: "Prompt",
+  baseModel: "Base-Model",
+};
 
 export interface CsvRow {
   filename: string;
@@ -120,6 +140,7 @@ export function changeExtension(filename: string, target: string): string {
 }
 
 function quote(value: string): string {
+  // Always quote - every reference template wraps every cell in double quotes.
   return `"${(value ?? "").toString().replace(/"/g, '""')}"`;
 }
 
@@ -133,12 +154,10 @@ function valueFor(field: CsvField, row: CsvRow, exportExt: string): string {
       return row.description || "";
     case "keywords":
       return Array.isArray(row.keywords) ? row.keywords.join(",") : row.keywords || "";
-    case "category":
-      return row.category || "";
     case "prompt":
       return row.prompt || "";
     case "baseModel":
-      return row.baseModel || "";
+      return row.baseModel || "leonardo";
     default:
       return "";
   }
@@ -149,17 +168,17 @@ export function buildCSV(platformId: string, rows: CsvRow[], options?: { exportE
   const sep = platform.separator;
   const ext = options?.exportExt || "";
   const headerLine = platform.headers.map(quote).join(sep);
-  const dataLines = (rows || []).map((row) =>
-    platform.fields.map((f) => quote(valueFor(f, row, ext))).join(sep)
-  );
-  return [headerLine, ...dataLines].join("\r\n");
+  const dataLines = (rows || [])
+    .filter((r) => r && r.filename)
+    .map((row) => platform.fields.map((f) => quote(valueFor(f, row, ext))).join(sep));
+  return [headerLine, ...dataLines].join("\n");
 }
 
 /** Plain text of all prompts separated by blank lines (CSV Tree parity). */
 export function buildPromptTxt(rows: CsvRow[]): string {
   return (rows || [])
-    .map((r) => r.prompt || r.title || "")
-    .map((s) => s.replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
+    .map((r) => (r.prompt || r.title || ""))
+    .map((s) => String(s).replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
     .filter(Boolean)
     .join("\n\n");
 }
@@ -167,12 +186,12 @@ export function buildPromptTxt(rows: CsvRow[]): string {
 /** One prompt per CSV row with blank rows between (CSV Tree parity). */
 export function buildPromptCsv(rows: CsvRow[]): string {
   const lines = (rows || [])
-    .map((r) => r.prompt || r.title || "")
-    .map((s) => s.replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
+    .map((r) => (r.prompt || r.title || ""))
+    .map((s) => String(s).replace(/^\s*(prompt|description|title)\s*:\s*/i, "").trim())
     .filter(Boolean);
   return lines
     .flatMap((line, i) => (i === lines.length - 1 ? [line] : [line, ""]))
-    .join("\r\n");
+    .join("\n");
 }
 
 export function buildJSON(rows: CsvRow[]): string {
@@ -182,7 +201,7 @@ export function buildJSON(rows: CsvRow[]): string {
       title: row.title,
       description: row.description,
       keywords: Array.isArray(row.keywords) ? row.keywords.join(", ") : row.keywords,
-      category: row.category,
+      ...(row.category ? { category: row.category } : {}),
       ...(row.prompt ? { prompt: row.prompt } : {}),
       ...(row.baseModel ? { baseModel: row.baseModel } : {}),
     })),

@@ -417,10 +417,12 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
     if (!canExport) return;
     const rows = exportRows();
     const stamp = new Date().toISOString().slice(0, 10);
+    const suffix = exportExt ? `-${exportExt}` : "";
     if (format === "csv") {
+      // Same naming scheme as CSV Tree.
       download(
         buildCSV(platform, rows, { exportExt }),
-        `${platform}-metadata${exportExt ? `-${exportExt}` : ""}-${stamp}.csv`,
+        `${platform}-metadata${suffix}.csv`,
         "text/csv;charset=utf-8"
       );
     } else if (format === "json") {
@@ -511,15 +513,16 @@ export default function GeneratorWorkbench({ settings }: { settings: GeneratorSe
           {/* Results */}
           {items.length > 0 && (
             <div className="space-y-4">
-              {items.map((item) => (
-                <ResultCard
-                  key={item.id}
-                  item={item}
-                  onUpdate={(patch) => updateItem(item.id, patch)}
-                  onRegenerate={() => regenerate(item.id)}
-                  onRemove={() => removeItem(item.id)}
-                />
-              ))}
+          {items.map((item) => (
+            <ResultCard
+              key={item.id}
+              item={item}
+              platform={platform}
+              onUpdate={(patch) => updateItem(item.id, patch)}
+              onRegenerate={() => regenerate(item.id)}
+              onRemove={() => removeItem(item.id)}
+            />
+          ))}
             </div>
           )}
 

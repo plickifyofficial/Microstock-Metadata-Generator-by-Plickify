@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getCardFields } from "@/lib/csv/formats";
 import type { GenerationMode, GenerationResult, GeneratedMetadata } from "@/lib/types";
 
 export async function copyText(text: string): Promise<boolean> {
@@ -43,31 +44,44 @@ export interface CardItem {
   promptText?: string;
 }
 
-export function metadataToText(item: CardItem): string {
+export function metadataToText(item: CardItem, platform?: string): string {
   if (item.mode === "img2prompt") {
     return `${item.filename}\n${item.promptText || ""}`;
   }
-  return [
+  const fields = platform ? getCardFields(platform) : null;
+  const has = (f: string) => (fields ? (fields as string[]).includes(f) : true);
+  const lines = [
     `File: ${item.filename}`,
-    `Title: ${item.title}`,
-    `Description: ${item.description}`,
-    `Keywords: ${item.keywords.join(", ")}`,
-    item.category ? `Category: ${item.category}` : "",
-    item.prompt ? `Prompt: ${item.prompt}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    has("title") ? `Title: ${item.title}` : "",
+    has("description") ? `Description: ${item.description}` : "",
+    has("keywords") ? `Keywords: ${item.keywords.join(", ")}` : "",
+    !fields && item.category ? `Category: ${item.category}` : "",
+    has("prompt") && item.prompt ? `Prompt: ${item.prompt}` : "",
+  ];
+  return lines.filter(Boolean).join("\n");
 }
 
 interface Props {
   item: CardItem;
+  platform: string;
   onUpdate: (patch: Partial<CardItem>) => void;
   onRegenerate: () => void;
   onRemove: () => void;
 }
 
-export default function ResultCard({ item, onUpdate, onRegenerate, onRemove }: Props) {
+export default function ResultCard({ item, platform, onUpdate, onRegenerate, onRemove }: Props) {
   const [copied, setCopied] = useState<string | null>(null);
+
+  // Card mirrors the CSV export columns of the selected platform
+  // (CSV Tree behaviour). Category shows on General only.
+  const fields = getCardFields(platform);
+  const has = (f: string) => (fields as string[]).includes(f);
+  const showTitle = has("title");
+  const showDescription = has("description");
+  const showKeywords = has("keywords");
+  const showPrompt = has("prompt");
+  const showBaseModel = has("baseModel");
+  const showCategory = platform === "general" && !showPrompt;
 
   async function doCopy(label: string, text: string) {
     const ok = await copyText(text);
@@ -158,67 +172,88 @@ export default function ResultCard({ item, onUpdate, onRegenerate, onRemove }: P
           </div>
         ) : (
           <div className="mt-4 space-y-3">
-            <Field
-              label={`Title (${item.title.length} chars)`}
-              value={item.title}
-              rows={2}
-              disabled={busy}
-              onChange={(v) => onUpdate({ title: v })}
-              onCopy={() => doCopy("title", item.title)}
-              copied={copied === "title"}
-            />
-            <Field
-              label="Description"
-              value={item.description}
-              rows={3}
-              disabled={busy}
-              onChange={(v) => onUpdate({ description: v })}
-              onCopy={() => doCopy("description", item.description)}
-              copied={copied === "description"}
-            />
-            <Field
-              label={`Keywords (${item.keywords.length})`}
-              value={item.keywords.join(", ")}
-              rows={2}
-              disabled={busy}
-              onChange={(v) =>
-                onUpdate({
-                  keywords: v
-                    .split(",")
-                    .map((k) => k.trim())
-                    .filter(Boolean),
-                })
-              }
-              onCopy={() => doCopy("keywords", item.keywords.join(", "))}
-              copied={copied === "keywords"}
-            />
-            <Field
-              label="Category"
-              value={item.category || ""}
-              rows={1}
-              disabled={busy}
-              onChange={(v) => onUpdate({ category: v })}
-              onCopy={() => doCopy("category", item.category || "")}
-              copied={copied === "category"}
-            />
-            {item.prompt !== undefined && (
+            {showTitle ? (
               <Field
-                label="Prompt"
-                value={item.prompt || ""}
+                label={`Title (${item.title.length} chars)`}
+                value={item.title}
                 rows={2}
                 disabled={busy}
-                onChange={(v) => onUpdate({ prompt: v })}
-                onCopy={() => doCopy("fprompt", item.prompt || "")}
-                copied={copied === "fprompt"}
+                onChange={(v) => onUpdate({ title: v })}
+                onCopy={() => doCopy("title", item.title)}
+                copied={copied === "title"}
               />
-            )}
+            ) : null}
+            {showDescription ? (
+              <Field
+                label="Description"
+                value={item.description}
+                rows={3}
+                disabled={busy}
+                onChange={(v) => onUpdate({ description: v })}
+                onCopy={() => doCopy("description", item.description)}
+                copied={copied === "description"}
+              />
+            ) : null}
+            {showKeywords ? (
+              <Field
+                label={`Keywords (${item.keywords.length})`}
+                value={item.keywords.join(", ")}
+                rows={2}
+                disabled={busy}
+                onChange={(v) =>
+                  onUpdate({
+                    keywords: v
+                      .split(",")
+                      .map((k) => k.trim())
+                      .filter(Boolean),
+                  })
+                }
+                onCopy={() => doCopy("keywords", item.keywords.join(", "))}
+                copied={copied === "keywords"}
+              />
+            ) : null}
+            {showCategory ? (
+              <Field
+                label="Category"
+                value={item.category || ""}
+                rows={1}
+                disabled={busy}
+                onChange={(v) => onUpdate({ category: v })}
+                onCopy={() => doCopy("category", item.category || "")}
+                copied={copied === "category"}
+              />
+            ) : null}
+            {showPrompt && item.prompt !== undefined ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-[3fr_1fr]">
+                <Field
+                  label="Prompt"
+                  value={item.prompt || ""}
+                  rows={2}
+                  disabled={busy}
+                  onChange={(v) => onUpdate({ prompt: v })}
+                  onCopy={() => doCopy("fprompt", item.prompt || "")}
+                  copied={copied === "fprompt"}
+                />
+                {showBaseModel ? (
+                  <Field
+                    label="Base-Model"
+                    value={item.baseModel || ""}
+                    rows={2}
+                    disabled={busy}
+                    onChange={(v) => onUpdate({ baseModel: v })}
+                    onCopy={() => doCopy("bmodel", item.baseModel || "")}
+                    copied={copied === "bmodel"}
+                  />
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ))}
 
       {/* Footer actions */}
       <div className="mt-4 flex flex-wrap gap-2">
         <button
-          onClick={() => doCopy("all", metadataToText(item))}
+          onClick={() => doCopy("all", metadataToText(item, platform))}
           disabled={busy || item.status !== "done"}
           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-40"
         >
