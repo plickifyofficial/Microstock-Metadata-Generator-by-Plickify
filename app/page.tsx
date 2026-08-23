@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/branding/SiteHeader";
 import SiteFooter from "@/components/branding/SiteFooter";
 import { getSiteSettings } from "@/lib/settings";
+import { PLATFORMS } from "@/lib/csv/formats";
 
 export default async function HomePage() {
   const s = await getSiteSettings();
@@ -55,14 +56,12 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            {/* Trust strip */}
+            {/* Trust strip - derived from the export platform list */}
             <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-              <span>Adobe Stock</span>
-              <span>Shutterstock</span>
-              <span>Freepik</span>
-              <span>Vecteezy</span>
-              <span>Dreamstime</span>
-              <span>+ 4 more</span>
+              {PLATFORMS.filter((p) => p.id !== "general").slice(0, 5).map((p) => (
+                <span key={p.id}>{p.name.replace(" (freepik)", "")}</span>
+              ))}
+              {PLATFORMS.length > 6 ? <span>+ {PLATFORMS.length - 6} more</span> : null}
             </div>
           </div>
         </section>
