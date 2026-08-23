@@ -28,8 +28,8 @@ export async function POST(request: Request) {
     ["description_words_max", 10, 300],
     ["keywords_count_min", 3, 100],
     ["keywords_count_max", 5, 100],
-    ["max_images_per_batch", 1, 50],
-    ["rate_limit_per_hour", 1, 1000],
+    ["max_images_per_batch", 1, 200],
+    ["rate_limit_per_hour", 0, 100000],
   ];
 
   for (const [field, min, max] of intFields) {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       const v = toInt(body[field]);
       if (v == null || v < min || v > max) {
         return NextResponse.json(
-          { error: `${field} must be a number between ${min} and ${max}.` },
+          { error: `${field} must be a number between ${min} and ${max} (0 = unlimited for rate limit).` },
           { status: 400 }
         );
       }

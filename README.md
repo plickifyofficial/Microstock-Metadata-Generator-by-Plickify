@@ -120,6 +120,7 @@ Your own Metadata Website
 - Theme: default light/dark/system, preset colors, custom HEX colors
 - Generator Settings: title/description/keyword bounds, category list,
   language, extra AI instructions, batch size, hourly rate limit
+  (0 = unlimited)
 - AI Settings: read-only status of the server env fallback key
 - Admins: add/disable/remove admin Google accounts from the UI
 - Usage: system-level generation log (no personal data)
@@ -320,7 +321,9 @@ Supported providers: `groq` (default), `openai`, `gemini`, `openrouter`,
 `AI_PROVIDER=custom` + `AI_BASE_URL`.
 
 All generation requests flow through `/api/generate` which validates the
-admin session, applies per-IP rate limits and logs usage.
+admin session, applies per-IP rate limits (optional - set
+**Rate Limit / Hour = 0** in Admin → Generator Settings for unlimited
+generation) and logs usage.
 
 ## 14. Local Development
 

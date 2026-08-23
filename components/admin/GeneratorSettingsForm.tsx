@@ -98,9 +98,9 @@ export default function GeneratorSettingsForm({ initial }: { initial: GeneratorS
         <div className="grid grid-cols-2 gap-3">
           <LabeledInput label="Language Code" value={form.language}
             onChange={(v) => set("language", v)} placeholder="en" />
-          <LabeledInput label="Max Images / Batch" type="number" min={1} max={50}
+          <LabeledInput label="Max Images / Batch" type="number" min={1} max={200}
             value={form.max_images_per_batch} onChange={(v) => set("max_images_per_batch", Number(v))} />
-          <LabeledInput label="Rate Limit / Hour / IP" type="number" min={1} max={1000}
+          <LabeledInput label="Rate Limit / Hour / IP (0 = unlimited)" type="number" min={0} max={100000}
             value={form.rate_limit_per_hour} onChange={(v) => set("rate_limit_per_hour", Number(v))} />
         </div>
         <label className="block">

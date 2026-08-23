@@ -147,15 +147,17 @@ export async function POST(request: Request) {
         }
       : undefined;
 
-  // Rate limit BEFORE calling the AI provider.
-  const rl = rateLimit(hashIp(clientIp(request)), settings.rate_limit_per_hour);
-  if (!rl.allowed) {
-    return NextResponse.json(
-      {
-        error: `Rate limit reached (${settings.rate_limit_per_hour} generations/hour). Try again in ${Math.ceil(rl.retryAfterSeconds / 60)} minute(s).`,
-      },
-      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
-    );
+  // Rate limit BEFORE calling the AI provider. 0 = unlimited.
+  if (settings.rate_limit_per_hour > 0) {
+    const rl = rateLimit(hashIp(clientIp(request)), settings.rate_limit_per_hour);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        {
+          error: `Rate limit reached (${settings.rate_limit_per_hour} generations/hour). Try again in ${Math.ceil(rl.retryAfterSeconds / 60)} minute(s).`,
+        },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
   }
 
   const prompt = buildPrompt(options);

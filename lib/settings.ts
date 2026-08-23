@@ -59,8 +59,8 @@ export async function getGeneratorSettings(): Promise<GeneratorSettings> {
         : fallback.categories,
       language: data.language || fallback.language,
       custom_prompt: data.custom_prompt || "",
-      max_images_per_batch: clampInt(data.max_images_per_batch, 1, 50, fallback.max_images_per_batch),
-      rate_limit_per_hour: clampInt(data.rate_limit_per_hour, 1, 1000, fallback.rate_limit_per_hour),
+      max_images_per_batch: clampInt(data.max_images_per_batch, 1, 200, fallback.max_images_per_batch),
+      rate_limit_per_hour: clampInt(data.rate_limit_per_hour, 0, 100000, fallback.rate_limit_per_hour),
     };
   } catch {
     return fallback;
