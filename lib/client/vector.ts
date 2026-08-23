@@ -160,38 +160,47 @@ function extractEpsTiffPreview(bytes: Uint8Array): PreparedImage | null {
   const comp = tags[259] || 1;
   const spp = tags[277] || 1;
   let strip = tags[273] || 0;
-  if (comp !== 1 || bps !== 8 || !W || !H || !strip) return null;
+
+  // Some EPS files embed print-resolution previews (A-size @ 300 dpi can
+  // exceed 60 MP). Decode DOWNSAMPLED so we never allocate gigapixel
+  // ImageData - that was freezing/crashing tabs.
+  const MAX_PREVIEW_EDGE = 1400;
+  if (!W || !H || comp !== 1 || bps !== 8 || !strip) return null;
+  const step = Math.max(1, Math.ceil(Math.max(W, H) / MAX_PREVIEW_EDGE));
+  const outW = Math.max(1, Math.floor(W / step));
+  const outH = Math.max(1, Math.floor(H / step));
   strip += start;
 
   const rowBytes = W * spp;
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
+  canvas.width = outW;
+  canvas.height = outH;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  const img = ctx.createImageData(W, H);
+  const img = ctx.createImageData(outW, outH);
 
-  for (let row = 0; row < H; row++) {
-    const src = strip + row * rowBytes;
-    if (src + rowBytes > bytes.length) break;
-    const dst = row * W * 4;
-    for (let x = 0; x < W; x++) {
+  for (let oy = 0; oy < outH; oy++) {
+    const srcRow = strip + oy * step * rowBytes;
+    const dst = oy * outW * 4;
+    for (let ox = 0; ox < outW; ox++) {
+      const src = srcRow + ox * step * spp;
+      if (src + spp > bytes.length) break;
       if (spp === 4) {
-        img.data[dst + x * 4] = bytes[src + x * 4];
-        img.data[dst + x * 4 + 1] = bytes[src + x * 4 + 1];
-        img.data[dst + x * 4 + 2] = bytes[src + x * 4 + 2];
-        img.data[dst + x * 4 + 3] = bytes[src + x * 4 + 3];
+        img.data[dst + ox * 4] = bytes[src];
+        img.data[dst + ox * 4 + 1] = bytes[src + 1];
+        img.data[dst + ox * 4 + 2] = bytes[src + 2];
+        img.data[dst + ox * 4 + 3] = bytes[src + 3];
       } else if (spp === 3) {
-        img.data[dst + x * 4] = bytes[src + x * 3];
-        img.data[dst + x * 4 + 1] = bytes[src + x * 3 + 1];
-        img.data[dst + x * 4 + 2] = bytes[src + x * 3 + 2];
-        img.data[dst + x * 4 + 3] = 255;
+        img.data[dst + ox * 4] = bytes[src];
+        img.data[dst + ox * 4 + 1] = bytes[src + 1];
+        img.data[dst + ox * 4 + 2] = bytes[src + 2];
+        img.data[dst + ox * 4 + 3] = 255;
       } else {
-        const g = bytes[src + x];
-        img.data[dst + x * 4] = g;
-        img.data[dst + x * 4 + 1] = g;
-        img.data[dst + x * 4 + 2] = g;
-        img.data[dst + x * 4 + 3] = 255;
+        const g = bytes[src];
+        img.data[dst + ox * 4] = g;
+        img.data[dst + ox * 4 + 1] = g;
+        img.data[dst + ox * 4 + 2] = g;
+        img.data[dst + ox * 4 + 3] = 255;
       }
     }
   }
