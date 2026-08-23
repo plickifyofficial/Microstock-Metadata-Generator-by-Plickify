@@ -2,7 +2,10 @@ import Link from "next/link";
 import { getSiteSettings } from "@/lib/settings";
 import ThemeToggle from "@/components/branding/ThemeToggle";
 import UserProfile from "@/components/branding/UserProfile";
+import HealthBadge from "@/components/branding/HealthBadge";
+import DeveloperMenu from "@/components/branding/DeveloperMenu";
 import { getAdminStatus } from "@/lib/auth";
+import { DEVELOPER } from "@/lib/core/license";
 
 export default async function SiteHeader() {
   const [s, { isAdmin }] = await Promise.all([getSiteSettings(), getAdminStatus()]);
@@ -38,6 +41,14 @@ export default async function SiteHeader() {
             About
           </Link>
           <ThemeToggle />
+          <HealthBadge />
+          <DeveloperMenu
+            dev={{
+              name: DEVELOPER.name,
+              website: DEVELOPER.website,
+              facebook: DEVELOPER.facebook,
+            }}
+          />
           <UserProfile isAdmin={isAdmin} />
         </nav>
       </div>

@@ -5,6 +5,7 @@ import { getGeneratorSettings, getSiteSettings } from "@/lib/settings";
 import { buildPrompt, type PromptOptions } from "@/lib/ai/prompts";
 import { generateWithAi } from "@/lib/ai/generate";
 import { hashIp, rateLimit } from "@/lib/rateLimit";
+import { assertLicenseIntegrity } from "@/lib/core/license";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -104,6 +105,10 @@ function buildOptions(body: Record<string, unknown>, s: Awaited<ReturnType<typeo
 }
 
 export async function POST(request: Request) {
+  // Core integrity check - generation refuses to run when the required
+  // Plickify attribution has been tampered with.
+  assertLicenseIntegrity();
+
   // The whole site is admin-only: generation requires an active admin.
   const guard = await requireAdminOrReturn();
   if (guard) return guard;

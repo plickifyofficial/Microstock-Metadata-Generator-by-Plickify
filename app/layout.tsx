@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getSiteSettings } from "@/lib/settings";
+import { assertLicenseIntegrity } from "@/lib/core/license";
 import "./globals.css";
+
+// Core integrity check - the site refuses to render when the required
+// Plickify attribution has been tampered with.
+assertLicenseIntegrity();
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
